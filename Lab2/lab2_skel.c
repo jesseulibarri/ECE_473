@@ -14,10 +14,10 @@
 #include <avr/io.h>
 #include <util/delay.h>
 
-#define OFF     0xFF
-#define ZERO    0xC0
-#define ONE     0xF9
-#define TWO     0xA4
+#define OFF     0xFF    // define all 7-segment codes in hex 
+#define ZERO    0xC0    //  |
+#define ONE     0xF9    //  |
+#define TWO     0xA4    //  V
 #define THREE   0xB0
 #define FOUR    0x99
 #define FIVE    0x92
@@ -26,17 +26,18 @@
 #define EIGHT   0x80
 #define NINE    0x90
 
-#define SEL_DIGIT_1 0x40
-#define SEL_DIGIT_2 0x30
-#define SEL_DIGIT_3 0x10
+#define SEL_DIGIT_1 0x40    // define all of the select codes
+#define SEL_DIGIT_2 0x30    //  |
+#define SEL_DIGIT_3 0x10    //  V
 #define SEL_DIGIT_4 0x00
 #define SEL_COLON   0x20
 #define ENABLE_TRISTATE 0x70    // tristate is enabled by Y7 decoder output.
                                 // ENABLE_TRISTATE are the bits on PORTB that
                                 // need to be set to get a low output on Y7.
+                                // This will enable the push buttons.
 #define DISABLE_TRISTATE 0x60
 
-#define MAX_NUM 1023;
+#define MAX_NUM 1023;       // The max number that the program will count to.
 
 //holds data to be sent to the segments. logic zero turns segment on
 uint8_t segment_data[5];
@@ -58,10 +59,8 @@ uint8_t segment_codes[5] = {SEL_DIGIT_4, SEL_DIGIT_3, SEL_COLON, SEL_DIGIT_2, SE
 //external loop delay times 12. 
 //
     
-    uint16_t state[8] = {0,0,0,0,0,0,0,0};
 uint8_t chk_buttons(uint8_t button) {
-   // int8_t chk_buttons(int8_t button) {
-   // static uint16_t state = 0; //holds present state
+    static uint16_t state[8] = {0,0,0,0,0,0,0,0}; //holds present state
     state[button] = (state[button] << 1) | (!bit_is_clear(PINA, button)) | 0xE000;
     if (state[button] == 0xF000) return 1;
     return 0;
@@ -77,9 +76,8 @@ uint8_t chk_buttons(uint8_t button) {
 //array is loaded at exit as:  |digit3|digit2|colon|digit1|digit0|
 void segsum(uint16_t sum) {
 
-  // variables needed for this function
+  // variable to store the number of digits in the sum
     int num_of_digits;
-    //int i;
   //determine how many digits there are
     if(sum < 10) num_of_digits = 1;
     else if (sum < 100) num_of_digits = 2;
@@ -89,37 +87,37 @@ void segsum(uint16_t sum) {
   //break up decimal sum into 4 digit-segments
     //***** General equation is num % 10 -> num /= 10 and repeat *****
     segment_data[0] = dec_to_7seg[sum % 10]; // This holds the ones
-    //sum /= 10;
     segment_data[1] = dec_to_7seg[(sum / 10) % 10]; // This holds the tens
-    //sum /= 10;
     // there is no segment_data[2] because that holds the colon
     segment_data[3] = dec_to_7seg[(sum / 100) % 10]; // This holds the hundreds
-    //sum /= 10;
     segment_data[4] = dec_to_7seg[(sum / 1000) % 10]; // This holds the thousands
 
   //blank out leading zero digits
+  //If there is one number, turn all digits off except the first digit.
         if(num_of_digits == 1)
         {
             segment_data[1] = OFF;
             segment_data[2] = OFF;
             segment_data[3] = OFF;
             segment_data[4] = OFF;
-
         }
+  // If there is two numbers, turn off all except the first two digits.
         else if(num_of_digits == 2)
         {
             segment_data[2] = OFF;
             segment_data[3] = OFF;
             segment_data[4] = OFF;
         }
+  // If there are three numbers, turn off colon and last digit.
         else if(num_of_digits == 3)
         {
             segment_data[2] = OFF;
             segment_data[4] = OFF;
         }
+  // Only other case is that there are four digits. In this case, turn
+  // off colon.
         else
             segment_data[2] = OFF;
-  //now move data to right place for misplaced colon position
 }//segment_sum
 //***********************************************************************************
 
@@ -127,9 +125,11 @@ void segsum(uint16_t sum) {
 //***********************************************************************************
 int main()
 {
-    int summed_value = 0; 
-    int i;
-    int digit_count;
+
+// Define useful constants
+    int summed_value = 0;   // Variable to store button addition number 
+    int i;                  // Generic index variable
+    int digit_count;        // Variable to keep track of displayed LED digit 
 
 
 //set port bits 4-7 B as outputs
@@ -144,7 +144,6 @@ while(1){
   PORTA = 0xFF; //enable pull-ups
 
   //enable tristate buffer for pushbutton switches
-  //DDRB = 0x70;  //make PORTB output so that tristate can be enabled
   PORTB = ENABLE_TRISTATE;
 
   //now check each button and increment the count as needed
@@ -168,9 +167,8 @@ while(1){
   //bound a counter (0-4) to keep track of digit to display
   //make PORTA an output
   DDRA = 0xFF;
-  
-  //_delay_ms(5);
-
+ 
+  //loop through and display each LED digit one at a time
   for(digit_count = 0; digit_count < 5; digit_count++)
   {
   //send 7 segment code to LED segments
@@ -180,7 +178,7 @@ while(1){
   //update digit to display 
     _delay_ms(1); 
   }//for
-  }//while
+}//while
 return 0;
 }//main
 
