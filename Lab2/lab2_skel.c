@@ -1,6 +1,10 @@
 // lab2_skel.c 
 // R. Traylor
 // 9.12.08
+//
+// Skeleton code filled out by:
+// Author: Jesse Ulibarri
+// Date: 9/22/16
 
 //  HARDWARE SETUP:
 //  PORTA is connected to the segments of the LED display. and to the pushbuttons.
@@ -93,7 +97,7 @@ void segsum(uint16_t sum) {
     segment_data[4] = dec_to_7seg[(sum / 1000) % 10]; // This holds the thousands
 
   //blank out leading zero digits
-  //If there is one number, turn all digits off except the first digit.
+  //If there is one number, turn all digits off except digit 0.
         if(num_of_digits == 1)
         {
             segment_data[1] = OFF;
@@ -101,21 +105,21 @@ void segsum(uint16_t sum) {
             segment_data[3] = OFF;
             segment_data[4] = OFF;
         }
-  // If there is two numbers, turn off all except the first two digits.
+  // If there is two numbers, turn off all digits except digits 0 and 1.
         else if(num_of_digits == 2)
         {
             segment_data[2] = OFF;
             segment_data[3] = OFF;
             segment_data[4] = OFF;
         }
-  // If there are three numbers, turn off colon and last digit.
+  // If there are three numbers, turn off colon and digit 4.
         else if(num_of_digits == 3)
         {
             segment_data[2] = OFF;
             segment_data[4] = OFF;
         }
   // Only other case is that there are four digits. In this case, turn
-  // off colon.
+  // off the colon.
         else
             segment_data[2] = OFF;
 }//segment_sum
