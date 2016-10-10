@@ -1,7 +1,0 @@
-*.o
-*.hex
-*.bin
-*.srec
-*.map
-*.elf
-*.lst
