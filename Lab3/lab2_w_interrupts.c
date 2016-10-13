@@ -203,11 +203,11 @@ int main()
 //set port bits 4-7 B as outputs
 DDRB = 0xF0;
 
-// TODO set up timer and interrupti
-TCCR0 |= (1 << CS00) | (1 << CS02);
-TIMSK |= (1 << TOIE0);
+// set up timer and interrupti
+TCCR0 |= (1 << CS00) | (1 << CS02); // set timer mode (normal, 128 prescalar)
+TIMSK |= (1 << TOIE0); // turn on timer interrupts
 
-sei();
+sei(); // enable global interrupts
 
 while(1){ }//while
 

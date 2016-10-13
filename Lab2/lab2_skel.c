@@ -139,7 +139,7 @@ while(1){
   //insert loop delay for debounce
 //  _delay_ms(1);
 
-    PORTE = 0x00;
+  PORTE = 0x00;
   //make PORTA an input port with pullups
   DDRA = 0x00; //set direction to input
   PORTA = 0xFF; //enable pull-ups
