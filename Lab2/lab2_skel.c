@@ -1,8 +1,3 @@
-// lab2_skel.c 
-// R. Traylor
-// 9.12.08
-//
-// Skeleton code filled out by:
 // Author: Jesse Ulibarri
 // Date: 9/22/16
 
@@ -179,7 +174,7 @@ while(1){
   {
   //send 7 segment code to LED segments
     PORTA = segment_data[digit_count];
-    //PORTE = segment_data[digit_count]; // for logic analyzer
+    PORTE = segment_data[digit_count]; // for logic analyzer
   //send PORTB the digit to display
     PORTB = segment_codes[digit_count];
   //update digit to display 
