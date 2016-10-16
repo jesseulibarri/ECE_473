@@ -1,8 +1,3 @@
-// lab2_skel.c 
-// R. Traylor
-// 9.12.08
-//
-// Skeleton code filled out by:
 // Author: Jesse Ulibarri
 // Date: 9/22/16
 
