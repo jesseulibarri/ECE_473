@@ -5,6 +5,20 @@
 //  HARDWARE SETUP:
 //  PORTA is connected to the segments of the LED display. and to the pushbuttons.
 //  PORTA.0 corresponds to segment a, PORTA.1 corresponds to segement b, etc.
+//
+//             ***** LED_GRAPH_BOARD *****
+//  PORTB bit 0 (SS_n) goes to REGLCK on graph board
+//  PORTB bit 1 (SCLK) goes to SRCLK on graph board
+//  PORTB bit 2 (MOSI) goes to SDIN on graph board
+//      OE_N goes to ground on AVR
+//      GND goes to ground on AVR
+//      VDD goes to VCC on AVR
+//      SD_OUT is not connected
+//
+//             ***** ENCODER_BOARD *****
+//
+// 
+//             ***** BUTTON_BOARD *****
 //  PORTB bits 4-6 go to a,b,c inputs of the 74HC138.
 //  PORTB bit 7 goes to the PWM transistor base.
 
@@ -39,6 +53,9 @@
 
 #define MAX_NUM 1023;
 
+volatile uint8_t display_count = 0x01;
+volatile uint8_t index = 0;
+
 //holds data to be sent to the segments. logic zero turns segment on
 uint8_t segment_data[5];
 
@@ -58,10 +75,8 @@ uint8_t segment_codes[5] = {SEL_DIGIT_4, SEL_DIGIT_3, SEL_COLON, SEL_DIGIT_2, SE
 //external loop delay times 12. 
 //
     
-    uint16_t state[8] = {0,0,0,0,0,0,0,0};
 uint8_t chk_buttons(uint8_t button) {
-   // int8_t chk_buttons(int8_t button) {
-   // static uint16_t state = 0; //holds present state
+    static uint16_t state[8] = {0,0,0,0,0,0,0,0};
     state[button] = (state[button] << 1) | (!bit_is_clear(PINA, button)) | 0xE000;
     if (state[button] == 0xF000) return 1;
     return 0;
@@ -89,12 +104,9 @@ void segsum(uint16_t sum) {
   //break up decimal sum into 4 digit-segments
     //***** General equation is num % 10 -> num /= 10 and repeat *****
     segment_data[0] = dec_to_7seg[sum % 10]; // This holds the ones
-    //sum /= 10;
     segment_data[1] = dec_to_7seg[(sum / 10) % 10]; // This holds the tens
-    //sum /= 10;
     // there is no segment_data[2] because that holds the colon
     segment_data[3] = dec_to_7seg[(sum / 100) % 10]; // This holds the hundreds
-    //sum /= 10;
     segment_data[4] = dec_to_7seg[(sum / 1000) % 10]; // This holds the thousands
 
   //blank out leading zero digits
@@ -130,6 +142,30 @@ void segsum(uint16_t sum) {
 //******************************************************************************
 
 //***********************************************************************************
+//                                   SPI send information
+//
+void SPI_send(uint8_t message) {
+    SPDR = message; // write message to SPI data register
+    while(bit_is_clear(SPSR, SPIF)) {} // wait for data to send
+
+}//SPI_send
+
+
+
+//******************************************************************************
+
+//***********************************************************************************
+//                                   SPI read information
+//
+uint8_t SPI_read() { 
+    SPDR = 0x00; // send junk to initialize SPI return
+    while(bit_is_clear(SPSR, SPIF)) {} // wait until data is recieved
+    return SPDR; // return data from device
+}//SPI_receive
+
+//******************************************************************************
+
+//***********************************************************************************
 //                                   get_button_input
 //
 // This routine will get any input from the button board and load the information
@@ -149,7 +185,7 @@ void get_button_input() {
     PORTB = ENABLE_TRISTATE;
 
     // wait for ports to be set
-    _delay_us(500);
+    __asm__ __volatile__ ("nop");
 
     // loop throught the buttons and check for a push
     for(i = 0; i < 8; i++) {
@@ -171,6 +207,11 @@ void get_button_input() {
 }
 
 
+//******************************************************************************
+
+//***********************************************************************************
+//                                   update_LEDs
+//
 void update_LEDs() {
     // define loop index
     int num_digits;
@@ -178,8 +219,9 @@ void update_LEDs() {
     // make port A an output
     DDRA = 0xFF;
 
-    // make sure that port has changed direction
-    _delay_us(500);
+    // make sure that port has changed direction 
+    __asm__ __volatile__ ("nop");
+    __asm__ __volatile__ ("nop");
 
     // loop and update each LED number
     for(num_digits = 0; num_digits < 5; num_digits++) {
@@ -188,28 +230,82 @@ void update_LEDs() {
         // send PORTB the digit to desplay
         PORTB = segment_codes[num_digits];
         // wait a moment
-        _delay_ms(1);
+        _delay_ms(0.5);
     }
 }
 
+
+//******************************************************************************
+
+//***********************************************************************************
+//                                   update_bar_graph
+//
+//
+void update_bar_graph() {
+    SPI_send(display_count); // send data to bar graph
+
+    PORTB |= 0x01;      // move data from shift to storage reg.
+    PORTB &= ~0x01;     // change 3-state back to high Z
+
+    display_count = display_count << 1; // move light across graph
+
+    if(display_count == 0x00)
+        display_count = 0x01; // rap around
+
+    _delay_us(200);
+
+
+}//update_bar_graph
+
+
+
+//******************************************************************************
+
+//***********************************************************************************
+//                                   Interrupt Routine
+//
 ISR(TIMER0_OVF_vect) {
+    PORTE = 0x00;
     get_button_input();
     update_LEDs();
-}
+    index++;
+    //update_bar_graph();
+    PORTE = 0x01;
+}//ISR
+
+
+
+
+
+
+
+//***********************************************************************************
+//***********************************************************************************
+//                                   MAIN
 
 int main()
 {
 
-//set port bits 4-7 B as outputs
-DDRB = 0xF0;
+// set port bits 4-7 B as outputs
+// set port bits 0-3 B as outputs (output mode for SS, MOSI, SCLK)
+DDRB = 0xF7;
+DDRE = 0x01; // set as output for debugging
 
-// set up timer and interrupti
-TCCR0 |= (1 << CS00) | (1 << CS02); // set timer mode (normal, 128 prescalar)
+// set up timer and interrupt
+TCCR0 |= (1 << CS01) | (1 << CS02); // set timer mode (normal, 128 prescalar)
 TIMSK |= (1 << TOIE0); // turn on timer interrupts
 
+// set up SPI (master mode, clk low on idle, leading edge sample)
+SPCR = (1 << SPE) | (1 << MSTR) | (0 << CPOL) | (0 << CPHA);
+SPSR = (1 << SPI2X);
 sei(); // enable global interrupts
 
-while(1){ }//while
+while(1){ 
+    if(index == 255) {
+        update_bar_graph();
+        index = 0;
+    }
+}//while
 
 return 0;
 }//main
