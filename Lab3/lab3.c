@@ -51,12 +51,18 @@
                                 // need to be set to get a low output on Y7.
 #define DISABLE_TRISTATE 0x60
 
-#define MAX_NUM 1023;
+#define MAX_NUM 1023
 
+// Define different modes
+#define ADD_ONE 0xFF
+#define ADD_TWO 0xFE
+#define ADD_FOUR 0xFD
+#define NO_ADD 0xFC
 
-volatile uint16_t summed_value = 0;
+volatile int16_t summed_value = 0;
 volatile uint8_t display_count = 0x01;
 volatile uint8_t index = 0;
+volatile uint8_t current_mode = ADD_ONE;
 
 //holds data to be sent to the segments. logic zero turns segment on
 uint8_t segment_data[5];
@@ -68,7 +74,8 @@ uint8_t dec_to_7seg[10] = {ZERO, ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT,
 uint8_t segment_codes[5] = {SEL_DIGIT_4, SEL_DIGIT_3, SEL_COLON, SEL_DIGIT_2, SEL_DIGIT_1};
 
 //look up table to determine what direction the encoders are turning
-int8_t enc_lookup[16] = {0,1,-1,0,-1,0,0,1,1,0,0,-1,0,-1,1,0};
+int8_t enc_lookup[16] = {0,0,0,0,0,0,0,1,0,0,0,-1,0,0,0,0};
+
 
 //******************************************************************************
 //                            chk_buttons                                      
@@ -81,7 +88,7 @@ int8_t enc_lookup[16] = {0,1,-1,0,-1,0,0,1,1,0,0,-1,0,-1,1,0};
 //
     
 uint8_t chk_buttons(uint8_t button) {
-    static uint16_t state[8] = {0,0,0,0,0,0,0,0};
+    static uint16_t state[3] = {0};
     state[button] = (state[button] << 1) | (!bit_is_clear(PINA, button)) | 0xE000;
     if (state[button] == 0xF000) return 1;
     return 0;
@@ -115,27 +122,27 @@ void segsum(uint16_t sum) {
     segment_data[4] = dec_to_7seg[(sum / 1000) % 10]; // This holds the thousands
 
   //blank out leading zero digits
-        if(num_of_digits == 1)
-        {
+    switch(num_of_digits)
+    {
+        case 1:
             segment_data[1] = OFF;
             segment_data[2] = OFF;
             segment_data[3] = OFF;
             segment_data[4] = OFF;
-
-        }
-        else if(num_of_digits == 2)
-        {
+            break;
+        case 2:
             segment_data[2] = OFF;
             segment_data[3] = OFF;
             segment_data[4] = OFF;
-        }
-        else if(num_of_digits == 3)
-        {
+            break;
+        case 3:
             segment_data[2] = OFF;
             segment_data[4] = OFF;
-        }
-        else
+            break;
+        case 4:
             segment_data[2] = OFF;
+            break;
+    }
   //now move data to right place for misplaced colon position
 }//segment_sum
 //***********************************************************************************
@@ -143,12 +150,26 @@ void segsum(uint16_t sum) {
 
 //***********************************************************************************
 
+//***********************************************************************************
+//                                   Set Boundaries
+//
+void bound_format_count() {
+
+    //bound count
+    if(summed_value > MAX_NUM)
+        summed_value -= MAX_NUM;
+    if(summed_value < 0)
+        summed_value += MAX_NUM + 1;
+
+    segsum(summed_value);
+}//bound_format_count
+
 
 //******************************************************************************
 
 //***********************************************************************************
 //                                   SPI send information
-//
+//  NOT IN USE
 void SPI_send(uint8_t message) {
     SPDR = message; // write message to SPI data register
     while(bit_is_clear(SPSR, SPIF)) {} // wait for data to send
@@ -161,7 +182,7 @@ void SPI_send(uint8_t message) {
 
 //***********************************************************************************
 //                                   SPI read information
-//
+//  NOT IN USE
 uint8_t SPI_read() { 
     PORTE = 0x00; //shift data into encoder register
     __asm__ __volatile__ ("nop");
@@ -197,21 +218,13 @@ void get_button_input() {
     __asm__ __volatile__ ("nop");
 
     // loop throught the buttons and check for a push
-    for(i = 0; i < 8; i++) {
+    for(i = 0; i < 3; i++) {
         if(chk_buttons(i))
-            summed_value += (1 << i);
+            current_mode ^= (1 << i);
     }
 
     // disable the tristate buffer
     PORTB = DISABLE_TRISTATE;
-
-    // bound the count
-    if(summed_value > 1023)
-        summed_value = summed_value % MAX_NUM;
-
-    // put all the numbers into the array in the correct
-    // place to be displayed
-    segsum(summed_value);
 
 }
 
@@ -241,6 +254,9 @@ void update_LEDs() {
         // wait a moment
         _delay_ms(0.5);
     }
+    PORTA = OFF; // turn off port to keep each segment on the same amount of time
+    __asm__ __volatile__ ("nop");
+    __asm__ __volatile__ ("nop");
 }
 
 
@@ -248,18 +264,18 @@ void update_LEDs() {
 
 //***********************************************************************************
 //                                   update_bar_graph
-//
+//  NOT IN USE
 //
 void update_bar_graph() {
-    SPI_send(display_count); // send data to bar graph
+    SPI_send(~current_mode); // send data to bar graph
 
     PORTB |= 0x01;      // move data from shift to storage reg.
     PORTB &= ~0x01;     // change 3-state back to high Z
 
-    display_count = display_count << 1; // move light across graph
+    //display_count = display_count << 1; // move light across graph
 
-    if(display_count == 0x00)
-        display_count = 0x01; // rap around
+    //if(display_count == 0x00)
+    //    display_count = 0x01; // rap around
 
     _delay_us(200);
 
@@ -268,26 +284,131 @@ void update_bar_graph() {
 
 
 
+
 //******************************************************************************
 
 //***********************************************************************************
 //                                   Encoder 1
 //
-void get_encoder1() {
-    
+void encoder1_instruction(uint8_t encoder1_val) {
 
     static uint8_t encoder1_hist = 0;
-    static uint8_t encoder1_val = 0;
-    encoder1_val = SPI_read(); //will get value from encoder
+    //static uint8_t encoder1_val = 0;
+    int8_t add;
+    //encoder1_val = SPI_read(); //will get value from encoder
 
     encoder1_hist = encoder1_hist << 2; // shift the encoder history two places
     encoder1_hist = encoder1_hist | (encoder1_val & 0b0011); // or the history with new value
+    switch(current_mode) 
+    {
+        case ADD_ONE:
+            add = enc_lookup[encoder1_hist & 0b1111] << 0; //add one
+            summed_value += add; // add number to sum
+            break;
+        case ADD_TWO:
+            add = enc_lookup[encoder1_hist & 0b1111] << 1; //add two
+            summed_value += add; // add number to sum
+            break;
+        case ADD_FOUR:
+            add = enc_lookup[encoder1_hist & 0b1111] << 2; //add four
+            summed_value += add; // add number to sum
+            break;
+        case NO_ADD:
+             //do not add anything
+            break;
+        default:
+            break;
 
-    summed_value = summed_value + enc_lookup[encoder1_hist & 0b1111]; // add number to sum
+    }//switch
 
-    segsum(summed_value);
+    //bound count
+    //if(summed_value > MAX_NUM)
+    //    summed_value -= MAX_NUM;
+    //if(summed_value < 0)
+    //    summed_value += MAX_NUM + 1;
+
+    //segsum(summed_value);
 
 }//get_encoder1
+
+
+//******************************************************************************
+
+//***********************************************************************************
+//                                   Encoder 2
+//
+void encoder2_instruction(uint8_t encoder2_val) {
+
+    static uint8_t encoder2_hist = 0;
+    //static uint8_t encoder2_val = 0;
+    int8_t add;
+    //encoder2_val = (SPI_read() >> 2); //will get value from encoder
+
+    encoder2_hist = encoder2_hist << 2; // shift the encoder history two places
+    encoder2_hist = encoder2_hist | (encoder2_val & 0b0011); // or the history with new value
+    switch(current_mode) 
+    {
+        case ADD_ONE:
+            add = enc_lookup[encoder2_hist & 0b1111] << 0; //add one
+            summed_value += add; // add number to sum
+            break;
+        case ADD_TWO:
+            add = enc_lookup[encoder2_hist & 0b1111] << 1; //add two
+            summed_value += add; // add number to sum
+            break;
+        case ADD_FOUR:
+            add = enc_lookup[encoder2_hist & 0b1111] << 2; //add four
+            summed_value += add; // add number to sum
+            break;
+        case NO_ADD:
+             //do not add anything
+            break;
+        default:
+            break;
+
+    }//switch
+
+    //bound count
+    //if(summed_value > MAX_NUM)
+    //    summed_value -= MAX_NUM;
+    //if(summed_value < 0)
+    //    summed_value += MAX_NUM + 1;
+
+    //segsum(summed_value);
+
+}//encoder2
+
+
+
+//******************************************************************************
+
+//***********************************************************************************
+//                                   SPI Total Functionallity
+//
+void SPI_function() {
+    uint8_t data;
+    
+    //************ Encoder Portion *******************
+    PORTE = 0x00; //shift encoder data into register
+    __asm__ __volatile__ ("nop");
+    __asm__ __volatile__ ("nop");
+    PORTE = 0x01; //end shift
+
+    //*********** Send and Receive SPI Data **********
+    SPDR = ~current_mode; // send the bar graph the current status
+    while(bit_is_clear(SPSR, SPIF)) {} // wait until encoder data is recieved
+    data = SPDR;
+
+    //********** Bar Graph Portion *******************
+    PORTB |= 0x01;      // move graph data from shift to storage reg.
+    PORTB &= ~0x01;     // change 3-state back to high Z
+
+    //********** Pass Encoder Info to Functions ******
+    encoder1_instruction(data);
+    encoder2_instruction(data >> 2);
+    
+
+}//get_encoder
 
 
 //******************************************************************************
@@ -297,18 +418,20 @@ void get_encoder1() {
 //
 ISR(TIMER0_OVF_vect) {
     PORTF = 0x00;
-    get_encoder1();
+    uint8_t old_DDRA = DDRA;
+    uint8_t old_PORTA = PORTA;
+    uint8_t old_PORTB = PORTB;
     get_button_input();
-    update_LEDs();
-    index++;
-    //update_bar_graph();
+    SPI_function();
+
+    bound_format_count();
+//    update_LEDs();
+
+    DDRA = old_DDRA;
+    PORTA = old_PORTA;
+    PORTB = old_PORTB;
     PORTF = 0x01;
 }//ISR
-
-
-
-
-
 
 
 //***********************************************************************************
@@ -328,7 +451,7 @@ PORTE = 0xFD;
 DDRF = 0x01; // set as output for debugging
 
 // set up timer and interrupt
-TCCR0 |= (1 << CS01) | (1 << CS02); // set timer mode (normal, 128 prescalar)
+TCCR0 |= (1 << CS00) | (1 << CS02); // set timer mode (normal, 128 prescalar)
 TIMSK |= (1 << TOIE0); // turn on timer interrupts
 
 // set up SPI (master mode, clk low on idle, leading edge sample)
@@ -336,11 +459,11 @@ SPCR = (1 << SPE) | (1 << MSTR) | (0 << CPOL) | (0 << CPHA);
 SPSR = (1 << SPI2X);
 sei(); // enable global interrupts
 
-while(1){ 
-    if(index == 255) {
-        update_bar_graph();
-        index = 0;
-    }
+while(1){
+
+    //bound_format_count();
+    update_LEDs();
+    
 }//while
 
 return 0;

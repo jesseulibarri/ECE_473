@@ -1,4 +1,4 @@
-PRG            =lab2_w_interrupts
+PRG            =lab3
 
 OBJ            = $(PRG).o
 
