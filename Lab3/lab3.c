@@ -1,6 +1,7 @@
-// lab2_skel.c 
-// R. Traylor
-// 9.12.08
+//Author: Jesse Ulibarri
+//Date: 10/17/16
+//Class: ECE 473
+//Assignment: Lab3
 
 //  HARDWARE SETUP:
 //  PORTA is connected to the segments of the LED display. and to the pushbuttons.
