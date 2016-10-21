@@ -27,39 +27,37 @@ ISR(TIMER3_OVF_vect) {
 	static uint8_t index=0;
 	OCR1A = brightness[index];
 	index++;
-	if(index == 19)
-			index=0;                                                      
-                            
+	if(index == 19) index=0;                     
 }
 
 int main() {
 
-  DDRB    = (1<<PB5);                            //set port B bit five to output
+  DDRB    = (1<<PB5);    //set port B bit five to output
 
 //setup timer counter 1 as the pwm source
 
-  TCCR1A |= (1<<WGM11)|(1<<COM1A1)|(1<<COM1A0);                            //fast pwm, set on match, clear@bottom, 
-                                        //(inverting mode) ICR1 holds TOP
+  TCCR1A |= (1<<WGM11)|(1<<COM1A1)|(1<<COM1A0);   //fast pwm, set on match, clear@bottom, 
+                                                  //(inverting mode) ICR1 holds TOP
 
-  TCCR1B |= (1<<WGM13)|(1<<WGM12)|(1<<CS10);                            //use ICR1 as source for TOP, use clk/1
+  TCCR1B |= (1<<WGM13)|(1<<WGM12)|(1<<CS10);      //use ICR1 as source for TOP, use clk/1
 
-  TCCR1C  =0x00;                   //no forced compare 
+  TCCR1C  =0x00;        //no forced compare 
 
-  ICR1    =  0xF000;                           //clear at 0xF000                               
+  ICR1    =  0xF000;    //clear at 0xF000                               
 
   
 //setup timer counter 3 as the interrupt source, 30 interrupts/sec
 // (16,000,000)/(8 * 2^16) = 30 cycles/sec
 
-  TCCR3A =  0x00;                            //normal mode
+  TCCR3A = 0x00;           //normal mode
 
-  TCCR3B =       (1<<CS31);                       //use clk/8  (15hz)  
+  TCCR3B = (1<<CS31);      //use clk/8  (15hz)  
 
-  TCCR3C = 0X00;                             //no forced compare 
+  TCCR3C = 0X00;           //no forced compare 
 
-  ETIMSK = (1<<TOIE3);                         //enable timer 3 interrupt on TOV
+  ETIMSK = (1<<TOIE3);     //enable timer 3 interrupt on TOV
 
-  sei();                                //set GIE to enable interrupts
+  sei();                   //set GIE to enable interrupts
   while(1) { } //do forever
  
 }  // main
