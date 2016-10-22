@@ -21,13 +21,13 @@
 //the array and make the control easier.  Values from 0x0100 thru 0xEF00 work 
 //well for setting the brightness level.
 
-uint16_t brightness[18] = {0x0100,0x2000,0x7000,0xA000,0xC000,0xD000,0xD0FF,0xDF00,0xE000,0xEF00,0xE000,0xDF00,0xD0FF,0xD000,0xC000,0xA000,0x7000,0x2000} ;
+uint16_t brightness[18] = {0x0100,0x2000,0x7000,0xA000,0xC000,0xD000,0xD0FF,0xDF00,0xE000,0xEA00,0xE000,0xDF00,0xD0FF,0xD000,0xC000,0xA000,0x7000,0x2000};
 
 ISR(TIMER3_OVF_vect) {
 	static uint8_t index=0;
 	OCR1A = brightness[index];
 	index++;
-	if(index == 19) index=0;                     
+	if(index == 18) index=0; 
 }
 
 int main() {
@@ -36,10 +36,10 @@ int main() {
 
 //setup timer counter 1 as the pwm source
 
-  TCCR1A |= (1<<WGM11)|(1<<COM1A1)|(1<<COM1A0);   //fast pwm, set on match, clear@bottom, 
+  TCCR1A |= (1<<WGM11) | (1<<COM1A1) | (1<<COM1A0);   //fast pwm, set on match, clear@bottom, 
                                                   //(inverting mode) ICR1 holds TOP
 
-  TCCR1B |= (1<<WGM13)|(1<<WGM12)|(1<<CS10);      //use ICR1 as source for TOP, use clk/1
+  TCCR1B |= (1<<WGM13) | (1<<WGM12) | (1<<CS10);      //use ICR1 as source for TOP, use clk/1
 
   TCCR1C  =0x00;        //no forced compare 
 

@@ -3,21 +3,11 @@ PRG            =heartint_skeleton
 OBJ            = $(PRG).o
 
 MCU_TARGET     = atmega128
-#OPTIMIZE       = -O0    # options are 1, 2, 3, s
-#OPTIMIZE       = -O1    # options are 1, 2, 3, s
-OPTIMIZE        = -O2    # options are 1, 2, 3, s
-#OPTIMIZE       = -Os    # options are 1, 2, 3, s
-
-F_CPU 		=16000000UL
-
-DEFS           =
-LIBS           =
-
+OPTIMIZE       = -O2    # options are 1, 2, 3, s
 CC             = avr-gcc
+F_CPU          = 16000000UL
 
-# Override is only needed by avr-lib build system.
-
-override CFLAGS        = -g -Wall $(OPTIMIZE) -mmcu=$(MCU_TARGET) $(DEFS) -DF_CPU=$(F_CPU)
+override CFLAGS        = -g -Wall $(OPTIMIZE) -mmcu=$(MCU_TARGET) $(DEFS)
 override LDFLAGS       = -Wl,-Map,$(PRG).map
 
 OBJCOPY        = avr-objcopy
@@ -26,15 +16,17 @@ OBJDUMP        = avr-objdump
 all: $(PRG).elf lst text eeprom
 
 $(PRG).elf: $(OBJ)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LIBS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LIBS) -DF_CPU=$(F_CPU)
 
 clean: 
-	rm -rf *.o $(PRG).elf *.eps *.png *.bak *.srec *.hex *.bin 
-	rm -rf *.lst *.map $(EXTRA_CLEAN_FILES) *~
+	rm -rf *.o $(PRG).elf *.bin *.hex *.srec *.bak  
+	rm -rf $(PRG)_eeprom.bin $(PRG)_eeprom.hex $(PRG)_eeprom.srec
+	rm -rf *.lst *.map 
 
+#setup for for USB programmer
+#may need to be changed depending on your programmer
 program: $(PRG).hex
-	avrdude -p m128 -c usbasp  -e -U flash:w:$(PRG).hex 
-#	avrdude -p m128 -c ousisp2 -e -U flash:w:$(PRG).hex 
+	sudo avrdude -c usbasp -p m128 -e -U flash:w:$(PRG).hex  -v
 
 lst:  $(PRG).lst
 
@@ -74,4 +66,3 @@ esrec: $(PRG)_eeprom.srec
 
 %_eeprom.bin: %.elf
 	$(OBJCOPY) -j .eeprom --change-section-lma .eeprom=0 -O binary $< $@
-
