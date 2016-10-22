@@ -61,8 +61,6 @@
 #define NO_ADD 0xFC
 
 volatile int16_t summed_value = 0;
-volatile uint8_t display_count = 0x01;
-volatile uint8_t index = 0;
 volatile uint8_t current_mode = ADD_ONE;
 
 //holds data to be sent to the segments. logic zero turns segment on
@@ -248,10 +246,14 @@ void update_LEDs() {
 
     // loop and update each LED number
     for(num_digits = 0; num_digits < 5; num_digits++) {
-        // send 7 segment code to LED segments
-        PORTA = segment_data[num_digits];
         // send PORTB the digit to desplay
         PORTB = segment_codes[num_digits];
+
+        //__asm__ __volatile__ ("nop");
+
+        // send 7 segment code to LED segments
+        PORTA = segment_data[num_digits];
+
         // wait a moment
         _delay_ms(0.5);
     }
@@ -273,11 +275,6 @@ void update_bar_graph() {
     PORTB |= 0x01;      // move data from shift to storage reg.
     PORTB &= ~0x01;     // change 3-state back to high Z
 
-    //display_count = display_count << 1; // move light across graph
-
-    //if(display_count == 0x00)
-    //    display_count = 0x01; // rap around
-
     _delay_us(200);
 
 
@@ -294,9 +291,7 @@ void update_bar_graph() {
 void encoder1_instruction(uint8_t encoder1_val) {
 
     static uint8_t encoder1_hist = 0;
-    //static uint8_t encoder1_val = 0;
     int8_t add;
-    //encoder1_val = SPI_read(); //will get value from encoder
 
     encoder1_hist = encoder1_hist << 2; // shift the encoder history two places
     encoder1_hist = encoder1_hist | (encoder1_val & 0b0011); // or the history with new value
@@ -322,14 +317,6 @@ void encoder1_instruction(uint8_t encoder1_val) {
 
     }//switch
 
-    //bound count
-    //if(summed_value > MAX_NUM)
-    //    summed_value -= MAX_NUM;
-    //if(summed_value < 0)
-    //    summed_value += MAX_NUM + 1;
-
-    //segsum(summed_value);
-
 }//get_encoder1
 
 
@@ -341,9 +328,7 @@ void encoder1_instruction(uint8_t encoder1_val) {
 void encoder2_instruction(uint8_t encoder2_val) {
 
     static uint8_t encoder2_hist = 0;
-    //static uint8_t encoder2_val = 0;
     int8_t add;
-    //encoder2_val = (SPI_read() >> 2); //will get value from encoder
 
     encoder2_hist = encoder2_hist << 2; // shift the encoder history two places
     encoder2_hist = encoder2_hist | (encoder2_val & 0b0011); // or the history with new value
@@ -369,14 +354,6 @@ void encoder2_instruction(uint8_t encoder2_val) {
 
     }//switch
 
-    //bound count
-    //if(summed_value > MAX_NUM)
-    //    summed_value -= MAX_NUM;
-    //if(summed_value < 0)
-    //    summed_value += MAX_NUM + 1;
-
-    //segsum(summed_value);
-
 }//encoder2
 
 
@@ -396,7 +373,7 @@ void SPI_function() {
     PORTE = 0x01; //end shift
 
     //*********** Send and Receive SPI Data **********
-    SPDR = ~current_mode; // send the bar graph the current status
+    SPDR = (~current_mode | 0x03); // send the bar graph the current status
     while(bit_is_clear(SPSR, SPIF)) {} // wait until encoder data is recieved
     data = SPDR;
 
@@ -418,6 +395,11 @@ void SPI_function() {
 //                                   Interrupt Routine
 //
 ISR(TIMER0_OVF_vect) {
+    //PORTA = 0xFF;
+    //DDRA = 0xFF;
+    //PORTA = 0xFF;
+    
+    
     PORTF = 0x00;
     uint8_t old_DDRA = DDRA;
     uint8_t old_PORTA = PORTA;
@@ -425,7 +407,7 @@ ISR(TIMER0_OVF_vect) {
     get_button_input();
     SPI_function();
 
-    bound_format_count();
+   // bound_format_count();
 //    update_LEDs();
 
     DDRA = old_DDRA;
@@ -446,6 +428,8 @@ int main()
 // set port bits 0-3 B as outputs (output mode for SS, MOSI, SCLK)
 DDRB = 0xF7;
 
+
+
 // encoder is on PORTE
 DDRE = 0x03;
 PORTE = 0xFD;
@@ -462,7 +446,7 @@ sei(); // enable global interrupts
 
 while(1){
 
-    //bound_format_count();
+    bound_format_count();
     update_LEDs();
     
 }//while
