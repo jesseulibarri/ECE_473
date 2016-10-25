@@ -17,7 +17,10 @@
 //      SD_OUT is not connected
 //
 //             ***** ENCODER_BOARD *****
-//
+//  PORTB bit 1 (SCLK) goes to SCK on encoder board
+//  PORTB bit 3 (MISO) goes to SER_OUT on encoder board
+//  PORTE bit 0 goes to SH/LD on encoder board
+//  PORTE bit 1 goes to CLK_INH on encoder board
 // 
 //             ***** BUTTON_BOARD *****
 //  PORTB bits 4-6 go to a,b,c inputs of the 74HC138.
@@ -91,7 +94,8 @@ uint8_t chk_buttons(uint8_t button) {
     state[button] = (state[button] << 1) | (!bit_is_clear(PINA, button)) | 0xE000;
     if (state[button] == 0xF000) return 1;
     return 0;
-    }
+
+}i//chk_buttons
 
                                                  
 //******************************************************************************
@@ -101,6 +105,7 @@ uint8_t chk_buttons(uint8_t button) {
 //takes a 16-bit binary input value and places the appropriate equivalent 4 digit 
 //BCD segment code in the array segment_data for display.                       
 //array is loaded at exit as:  |digit3|digit2|colon|digit1|digit0|
+
 void segsum(uint16_t sum) {
 
   // variables needed for this function
@@ -141,17 +146,16 @@ void segsum(uint16_t sum) {
         case 4:
             segment_data[2] = OFF;
             break;
-    }
-  //now move data to right place for misplaced colon position
+    }//switch
 }//segment_sum
-//***********************************************************************************
-
-
 //***********************************************************************************
 
 //***********************************************************************************
 //                                   Set Boundaries
 //
+// This function bounds the current count to within the max limit. It then calls the 
+// segsum function which will format our value into the segment data array.
+
 void bound_format_count() {
 
     //bound count
@@ -161,6 +165,7 @@ void bound_format_count() {
         summed_value += MAX_NUM + 1;
 
     segsum(summed_value);
+
 }//bound_format_count
 
 
@@ -168,7 +173,11 @@ void bound_format_count() {
 
 //***********************************************************************************
 //                                   SPI send information
-//  NOT IN USE
+// Function will take in a message to send through SPI. It will write the data to the
+// SPI data register and then wait for the message to send before returning.
+//
+// NOT IN USE
+
 void SPI_send(uint8_t message) {
     SPDR = message; // write message to SPI data register
     while(bit_is_clear(SPSR, SPIF)) {} // wait for data to send
@@ -181,7 +190,13 @@ void SPI_send(uint8_t message) {
 
 //***********************************************************************************
 //                                   SPI read information
-//  NOT IN USE
+// Function will read any data coming through the SPI communication bus. It will write 
+// a garbage value to the SPI data register to initialize communication and then wait
+// for the data to be sent. At this time, any incoming data has entered the SPI data
+// register. The function now returns the read data.
+//
+// NOT IN USE
+
 uint8_t SPI_read() { 
     PORTE = 0x00; //shift data into encoder register
     __asm__ __volatile__ ("nop");
@@ -191,6 +206,7 @@ uint8_t SPI_read() {
     SPDR = 0x00; // send junk to initialize SPI return
     while(bit_is_clear(SPSR, SPIF)) {} // wait until data is recieved
     return SPDR; // return data from device
+
 }//SPI_receive
 
 //******************************************************************************
@@ -198,7 +214,7 @@ uint8_t SPI_read() {
 //***********************************************************************************
 //                                   get_button_input
 //
-// This routine will get any input from the button board and load the information
+// Function will get any input from the button board and load the information
 // into the segment_data array.
 
 
@@ -225,7 +241,7 @@ void get_button_input() {
     // disable the tristate buffer
     PORTB = DISABLE_TRISTATE;
 
-}
+}//get_button_input
 
 
 //******************************************************************************
@@ -233,6 +249,11 @@ void get_button_input() {
 //***********************************************************************************
 //                                   update_LEDs
 //
+// Function will send the data in the segment data array to the 7-segment board and 
+// then wait 0.5 ms on each value to allow the LED to be on long enough to produce 
+// a bright output.
+//
+
 void update_LEDs() {
     // define loop index
     int num_digits;
@@ -260,15 +281,18 @@ void update_LEDs() {
     PORTA = OFF; // turn off port to keep each segment on the same amount of time
     __asm__ __volatile__ ("nop");
     __asm__ __volatile__ ("nop");
-}
+
+}//update_LEDs
 
 
 //******************************************************************************
 
 //***********************************************************************************
 //                                   update_bar_graph
-//  NOT IN USE
+// Function will send the inverted value of the current mode variable to the graph bar.
 //
+// NOT IN USE
+
 void update_bar_graph() {
     SPI_send(~current_mode); // send data to bar graph
 
@@ -281,13 +305,16 @@ void update_bar_graph() {
 }//update_bar_graph
 
 
-
-
 //******************************************************************************
 
 //***********************************************************************************
 //                                   Encoder 1
+// 
+// Function will receive the raw data brought in from the encoder board, interperate
+// the data, and add the correct value to the sum variable based on the recieved 
+// encoder status and current mode.
 //
+
 void encoder1_instruction(uint8_t encoder1_val) {
 
     static uint8_t encoder1_hist = 0;
@@ -324,7 +351,11 @@ void encoder1_instruction(uint8_t encoder1_val) {
 
 //***********************************************************************************
 //                                   Encoder 2
+// 
+// This function is the same as the encoder1 function except that it will interperate
+// the data coming from encoder 2.
 //
+
 void encoder2_instruction(uint8_t encoder2_val) {
 
     static uint8_t encoder2_hist = 0;
@@ -357,12 +388,16 @@ void encoder2_instruction(uint8_t encoder2_val) {
 }//encoder2
 
 
-
 //******************************************************************************
 
 //***********************************************************************************
 //                                   SPI Total Functionallity
 //
+// Function will send the current mode data to the graph board and receive data from
+// the encoder at the same time. It will then call the encoders 1 and 2 functions 
+// to interperate the encoder data.
+//
+
 void SPI_function() {
     uint8_t data;
     
@@ -384,9 +419,8 @@ void SPI_function() {
     //********** Pass Encoder Info to Functions ******
     encoder1_instruction(data);
     encoder2_instruction(data >> 2);
-    
 
-}//get_encoder
+}//SPI_function
 
 
 //******************************************************************************
@@ -395,25 +429,20 @@ void SPI_function() {
 //                                   Interrupt Routine
 //
 ISR(TIMER0_OVF_vect) {
-    //PORTA = 0xFF;
-    //DDRA = 0xFF;
-    //PORTA = 0xFF;
-    
     
     PORTF = 0x00;
     uint8_t old_DDRA = DDRA;
     uint8_t old_PORTA = PORTA;
     uint8_t old_PORTB = PORTB;
+
     get_button_input();
     SPI_function();
-
-   // bound_format_count();
-//    update_LEDs();
 
     DDRA = old_DDRA;
     PORTA = old_PORTA;
     PORTB = old_PORTB;
     PORTF = 0x01;
+
 }//ISR
 
 
