@@ -90,12 +90,12 @@ int8_t enc_lookup[16] = {0,0,0,0,0,0,0,1,0,0,0,-1,0,0,0,0};
 //
     
 uint8_t chk_buttons(uint8_t button) {
-    static uint16_t state[3] = {0};
+    static uint16_t state[2] = {0};
     state[button] = (state[button] << 1) | (!bit_is_clear(PINA, button)) | 0xE000;
     if (state[button] == 0xF000) return 1;
     return 0;
 
-}i//chk_buttons
+}//chk_buttons
 
                                                  
 //******************************************************************************
@@ -231,9 +231,10 @@ void get_button_input() {
 
     // wait for ports to be set
     __asm__ __volatile__ ("nop");
+    __asm__ __volatile__ ("nop");
 
     // loop throught the buttons and check for a push
-    for(i = 0; i < 3; i++) {
+    for(i = 0; i < 2; i++) {
         if(chk_buttons(i))
             current_mode ^= (1 << i);
     }
@@ -408,7 +409,7 @@ void SPI_function() {
     PORTE = 0x01; //end shift
 
     //*********** Send and Receive SPI Data **********
-    SPDR = (~current_mode | 0x03); // send the bar graph the current status
+    SPDR = (~current_mode & 0x03); // send the bar graph the current status
     while(bit_is_clear(SPSR, SPIF)) {} // wait until encoder data is recieved
     data = SPDR;
 
