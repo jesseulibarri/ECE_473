@@ -231,6 +231,7 @@ void get_button_input() {
 
     // wait for ports to be set
     __asm__ __volatile__ ("nop");
+    __asm__ __volatile__ ("nop");
 
     // loop throught the buttons and check for a push
     for(i = 0; i < 3; i++) {
