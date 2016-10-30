@@ -63,17 +63,22 @@
 #define MAX_NUM 1023
 
 // Define different modes
-#define ADD_ONE 0xFF
-#define ADD_TWO 0xFE
-#define ADD_FOUR 0xFD
-#define NO_ADD 0xFC
+#define NORMAL              0xFF
+#define TOGGLE_CLK_FORMAT   0xFE
+#define SET_CLK             0xFD
+#define SET_ALARM           0xFB
 
 volatile int16_t summed_value = 0;
-volatile uint8_t current_mode = ADD_ONE;
-uint8_t hrs = 10;
-uint8_t min = 13;
+volatile uint8_t current_mode = NORMAL;
+int8_t hrs = 15;
+int8_t min = 13;
 uint8_t sec = 0;
+int8_t alarm_hrs = 1;
+int8_t alarm_min = 0;
 uint8_t Colon_Status = FALSE;
+uint8_t AM = FALSE;
+uint8_t twelve_hr_format = FALSE;
+uint8_t alarm_on = FALSE;
 
 //holds data to be sent to the segments. logic zero turns segment on
 uint8_t segment_data[5];
@@ -120,7 +125,7 @@ void real_clk_init() {
 //
     
 uint8_t chk_buttons(uint8_t button) {
-    static uint16_t state[2] = {0};
+    static uint16_t state[8] = {0};
     state[button] = (state[button] << 1) | (!bit_is_clear(PINA, button)) | 0xE000;
     if (state[button] == 0xF000) return 1;
     return 0;
@@ -131,12 +136,12 @@ uint8_t chk_buttons(uint8_t button) {
 //******************************************************************************
 
 //***********************************************************************************
-//                                   clk_format
+//                             format_clk_array
 //takes a 16-bit binary input value and places the appropriate equivalent 4 digit 
 //BCD segment code in the array segment_data for display.                       
 //array is loaded at exit as:  |digit3|digit2|colon|digit1|digit0|
 
-void clk_format(uint8_t hours, uint8_t minutes) {
+void format_clk_array(uint8_t hours, uint8_t minutes) {
 
   //break up decimal sum into 4 digit-segments
     segment_data[0] = dec_to_7seg[minutes % 10]; // This holds the ones
@@ -148,6 +153,13 @@ void clk_format(uint8_t hours, uint8_t minutes) {
     // Determine if the colon needs to be on
     if(TCNT0 == 128) 
         Colon_Status = TRUE;
+
+    // Determine if it is AM or PM
+    if(!AM && twelve_hr_format)
+        segment_data[0] &= ~(1 << 7); //turn on last DP
+
+    if(alarm_on)
+        segment_data[4] &= ~(1 << 7);
 
     switch(Colon_Status)
     {
@@ -169,20 +181,38 @@ void clk_format(uint8_t hours, uint8_t minutes) {
 
 void clk_boundary() {
 
-    if(sec == 60) {
-        min += 1;
-        sec = 0;
-    }
-    if(min == 60) {
-        hrs += 1;
-        min = 0;
-    }
-    if(hrs == 13) {
-        hrs = 1;
-    }
+    switch(twelve_hr_format) 
+    {
+        case TRUE:
+            if(sec == 60) {
+                min += 1;
+                sec = 0;
+            }
+            if(min == 60) {
+                hrs += 1;
+                min = 0;
+            }
+            if(hrs == 13) {
+                hrs = 1;
+                AM ^= TRUE; //Toggle every time hrs rap around
+            }
+            break;
 
-}//bound_format_count
-
+        case FALSE:
+            if(sec == 60) {
+                min += 1;
+                sec = 0;
+            }
+            if(min == 60) {
+                hrs += 1;
+                min = 0;
+            }
+            if(hrs == 24) {
+                hrs = 0;
+            }
+            break;
+        }//switch
+}//clk_boundary
 
 //***********************************************************************************
 //                                   Step Time Forward
@@ -193,8 +223,23 @@ void step_time() {
     Colon_Status = FALSE;   // part of colon "one-shot". Turn colon OFF every interrupt
     sec += 1;               // increment the second count
 
-    clk_boundary();         // bound/roll clock over
+    clk_boundary();
 
+}//step_time
+
+
+//***********************************************************************************
+//                                   Change Format
+//
+
+void twelve_to_twfour() {
+    if(!AM)
+        hrs += 12;
+}//twelve_to_twfour
+
+void twfour_to_twelve() {
+    if(hrs > 12)
+        hrs -= 12;
 }
 
 //******************************************************************************
@@ -209,6 +254,9 @@ void step_time() {
 void SPI_send(uint8_t message) {
     SPDR = message; // write message to SPI data register
     while(bit_is_clear(SPSR, SPIF)) {} // wait for data to send
+
+    PORTB |= 0x01;      // move data from shift to storage reg.
+    PORTB &= ~0x01;     // change 3-state back to high Z
 
 }//SPI_send
 
@@ -262,10 +310,32 @@ void get_button_input() {
     __asm__ __volatile__ ("nop");
 
     // loop throught the buttons and check for a push
-    for(i = 0; i < 2; i++) {
-        if(chk_buttons(i))
-            current_mode ^= (1 << i);
-    }
+    switch(current_mode)
+    {
+        case NORMAL:
+            for(i = 0; i < 3; i++) {
+                if(chk_buttons(i))
+                    current_mode ^= (1 << i);
+            }
+            break;
+
+        case SET_CLK:
+            if(twelve_hr_format && chk_buttons(0))
+                AM ^= TRUE;
+            if(chk_buttons(1))
+                current_mode = NORMAL;
+            break;
+
+        case SET_ALARM:
+            if(twelve_hr_format && chk_buttons(0))
+                AM ^= TRUE;
+            if(chk_buttons(2))
+                current_mode = NORMAL;
+            if(chk_buttons(7))
+                alarm_on ^= TRUE;
+            break;
+            
+    }//switch
 
     // disable the tristate buffer
     PORTB = DISABLE_TRISTATE;
@@ -314,22 +384,6 @@ void update_LEDs() {
 
 //******************************************************************************
 
-//***********************************************************************************
-//                                   update_bar_graph
-// Function will send the inverted value of the current mode variable to the graph bar.
-//
-// NOT IN USE
-
-void update_bar_graph() {
-    SPI_send(~current_mode); // send data to bar graph
-
-    PORTB |= 0x01;      // move data from shift to storage reg.
-    PORTB &= ~0x01;     // change 3-state back to high Z
-
-    _delay_us(200);
-
-
-}//update_bar_graph
 
 
 //******************************************************************************
@@ -351,21 +405,34 @@ void encoder1_instruction(uint8_t encoder1_val) {
     encoder1_hist = encoder1_hist | (encoder1_val & 0b0011); // or the history with new value
     switch(current_mode) 
     {
-        case ADD_ONE:
-            add = enc_lookup[encoder1_hist & 0b1111] << 0; //add one
-            summed_value += add; // add number to sum
+        case NORMAL:
+            //do not do anything
             break;
-        case ADD_TWO:
-            add = enc_lookup[encoder1_hist & 0b1111] << 1; //add two
-            summed_value += add; // add number to sum
+        case SET_CLK:
+            add = enc_lookup[encoder1_hist & 0b1111]; //add one
+            min += add; // add number to min
+
+            //bound the new minute setting
+            if(min > 59)
+                min = 0;
+            if(min < 0)
+                min = 59;
+
             break;
-        case ADD_FOUR:
-            add = enc_lookup[encoder1_hist & 0b1111] << 2; //add four
-            summed_value += add; // add number to sum
+        case SET_ALARM:
+            add = enc_lookup[encoder1_hist & 0b1111]; //add four
+            alarm_min += add; // add number to sum
+
+            //bound the new minute setting
+            if(alarm_min > 59)
+                alarm_min = 0;
+            if(alarm_min < 0)
+                alarm_min = 59;
+
             break;
-        case NO_ADD:
+        //case NO_ADD:
              //do not add anything
-            break;
+        //    break;
         default:
             break;
 
@@ -392,21 +459,52 @@ void encoder2_instruction(uint8_t encoder2_val) {
     encoder2_hist = encoder2_hist | (encoder2_val & 0b0011); // or the history with new value
     switch(current_mode) 
     {
-        case ADD_ONE:
-            add = enc_lookup[encoder2_hist & 0b1111] << 0; //add one
-            summed_value += add; // add number to sum
+        case NORMAL:
+            //do not do anything
             break;
-        case ADD_TWO:
-            add = enc_lookup[encoder2_hist & 0b1111] << 1; //add two
-            summed_value += add; // add number to sum
+        case SET_CLK:
+            add = enc_lookup[encoder2_hist & 0b1111]; //add one
+            hrs += add; // add number to hrs
+
+            //bound the new hours setting
+            switch(twelve_hr_format)
+            {
+                case TRUE:
+                    if(hrs > 12)
+                        hrs = 1;
+                    if(hrs < 1)
+                        hrs = 12;
+                    break;
+                case FALSE:
+                    if(hrs > 23)
+                        hrs = 0;
+                    if(hrs < 0)
+                        hrs = 23;
+            }//switch
+
+        case SET_ALARM:
+            add = enc_lookup[encoder2_hist & 0b1111]; //add four
+            alarm_hrs += add; // add number to sum
+
+            //bound the new hours setting
+            switch(twelve_hr_format)
+            {
+                case TRUE:
+                    if(alarm_hrs > 12)
+                        alarm_hrs = 1;
+                    if(alarm_hrs < 1)
+                        alarm_hrs = 12;
+                    break;
+                case FALSE:
+                    if(alarm_hrs > 23)
+                        alarm_hrs = 0;
+                    if(alarm_hrs < 0)
+                       alarm_hrs = 23;
+            }//switch
             break;
-        case ADD_FOUR:
-            add = enc_lookup[encoder2_hist & 0b1111] << 2; //add four
-            summed_value += add; // add number to sum
-            break;
-        case NO_ADD:
+        //case NO_ADD:
              //do not add anything
-            break;
+        //    break;
         default:
             break;
 
@@ -435,7 +533,7 @@ void SPI_function() {
     PORTE = 0x01; //end shift
 
     //*********** Send and Receive SPI Data **********
-    SPDR = (~current_mode & 0x03); // send the bar graph the current status
+    SPDR = (~current_mode); // send the bar graph the current status
     while(bit_is_clear(SPSR, SPIF)) {} // wait until encoder data is recieved
     data = SPDR;
 
@@ -452,18 +550,99 @@ void SPI_function() {
 
 //******************************************************************************
 
+
+//***********************************************************************************
+//                                   mode_handler
+//
+void mode_handler() {
+
+    switch(current_mode)
+    {
+
+//********************************* NORMAL MODE **************************************
+        case NORMAL:
+            //do not do anything
+            break;
+
+//*************************** TOGGLE CLOCK FORMAT MODE *******************************
+        case TOGGLE_CLK_FORMAT:
+            twelve_hr_format ^= TRUE; //if change format button is pushed, toggle
+            
+            switch(twelve_hr_format)
+            {
+                case FALSE:
+                    twelve_to_twfour();
+                    break;
+                case TRUE:
+                    twfour_to_twelve();
+                    break;
+            }//switch
+
+            current_mode = NORMAL;
+
+            break;
+
+//***************************** SET CLOCK MODE *************************************
+        case SET_CLK:
+
+            TCCR0 = (0 << CS00) | (0 << CS01) | (0 << CS02); //disable real clock
+            TCNT0 = 0x00; //reset counter
+            sec = 0;
+            Colon_Status = TRUE; //turn colon on
+
+            SPI_function();
+
+            TCCR0 |= (1 << CS02) | (1 << CS00); //turn clock back on
+            break;
+
+//***************************** SET ALARM MODE *************************************
+        case SET_ALARM:
+            
+            format_clk_array(alarm_hrs, alarm_min);
+            Colon_Status = TRUE;
+
+            SPI_function();
+
+            break;
+        default:
+            break;
+
+    }//switch
+}//mode_handler
+
+
+
 //***********************************************************************************
 //                                   Interrupt Routine
 //
 ISR(TIMER0_OVF_vect) {
     
-    PORTC = 0x00;
-    
+    PORTC &= ~(1 << 0);
     step_time();
+    PORTC |= (1 << 0);
 
-    PORTC = 0x01;
+}//Timer0 overflow ISR
 
-}//ISR
+ISR(TIMER2_OVF_vect) {
+
+    PORTC &= ~(1 << 4);
+    //PORTC = 0x00;
+    uint8_t old_DDRA = DDRA;
+    uint8_t old_PORTA = PORTA;
+    uint8_t old_PORTB = PORTB;
+
+    get_button_input();
+    mode_handler();
+    SPI_send(~current_mode);
+
+    DDRA = old_DDRA;
+    PORTA = old_PORTA;
+    PORTB = old_PORTB;
+
+    //PORTC = 0x01;
+    PORTC |= (1 << 4);
+
+}//Timer2 overflow ISR
 
 
 //***********************************************************************************
@@ -477,25 +656,35 @@ int main()
 // set port bits 0-3 B as outputs (output mode for SS, MOSI, SCLK)
 DDRB = 0xF7;
 
+// initialize the real time clock and initial clock display
 real_clk_init();
+format_clk_array(hrs, min);
 
 // encoder is on PORTE
-//DDRE = 0x03;
-//PORTE = 0xFD;
-DDRC = 0x01; // set as output for debugging
+DDRE = 0x03;
+PORTE = 0xFD;
+DDRC = 0xFF; // set as output for debugging
 
 // set up timer and interrupt
-//TCCR0 |= (1 << CS00) | (1 << CS02); // set timer mode (normal, 128 prescalar)
-//TIMSK |= (1 << TOIE0); // turn on timer interrupts
+TCCR2 |= (1 << CS21) | (1 << CS20); // set timer mode (normal, 128 prescalar)
+TIMSK |= (1 << TOIE2); // turn on timer interrupts
 
 // set up SPI (master mode, clk low on idle, leading edge sample)
-//SPCR = (1 << SPE) | (1 << MSTR) | (0 << CPOL) | (0 << CPHA);
-//SPSR = (1 << SPI2X);
+SPCR = (1 << SPE) | (1 << MSTR) | (0 << CPOL) | (0 << CPHA);
+SPSR = (1 << SPI2X);
 sei(); // enable global interrupts
 
 while(1){
-
-    clk_format(hrs, min);
+   
+    switch(current_mode)
+    {
+        case NORMAL:
+            format_clk_array(hrs, min);
+            break;
+        case SET_ALARM:
+            format_clk_array(alarm_hrs, alarm_min);
+            break;
+    }//switch
     update_LEDs();
     
 }//while
