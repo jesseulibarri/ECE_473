@@ -32,6 +32,7 @@
 #include <avr/io.h>
 #include <util/delay.h>
 #include <avr/interrupt.h>
+#include "hd44780.c"
 
 #define FALSE   0
 #define TRUE    1
@@ -79,6 +80,8 @@ uint8_t Colon_Status = FALSE;
 uint8_t AM = FALSE;
 uint8_t twelve_hr_format = FALSE;
 uint8_t alarm_on = FALSE;
+
+uint8_t alarm_msg[16] = {'A', 'L', 'A', 'R', 'M', ' ',  ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '};
 
 //holds data to be sent to the segments. logic zero turns segment on
 uint8_t segment_data[5];
@@ -603,6 +606,11 @@ void mode_handler() {
 
             SPI_function();
 
+            if(alarm_on)
+                send_lcd(0x00, 0x0C);
+            else
+                send_lcd(0x00, 0x08);
+
             break;
         default:
             break;
@@ -660,6 +668,7 @@ DDRB = 0xF7;
 real_clk_init();
 format_clk_array(hrs, min);
 
+
 // encoder is on PORTE
 DDRE = 0x03;
 PORTE = 0xFD;
@@ -672,6 +681,10 @@ TIMSK |= (1 << TOIE2); // turn on timer interrupts
 // set up SPI (master mode, clk low on idle, leading edge sample)
 SPCR = (1 << SPE) | (1 << MSTR) | (0 << CPOL) | (0 << CPHA);
 SPSR = (1 << SPI2X);
+
+lcd_init(); // initialize the lcd screen
+string2lcd(alarm_msg); // sent msg
+send_lcd(0x00, 0x08); // turn diplay off
 sei(); // enable global interrupts
 
 while(1){
@@ -679,6 +692,9 @@ while(1){
     switch(current_mode)
     {
         case NORMAL:
+            format_clk_array(hrs, min);
+            break;
+        case SET_CLK:
             format_clk_array(hrs, min);
             break;
         case SET_ALARM:
