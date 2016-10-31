@@ -51,7 +51,7 @@
 #define COLON_ON   0xFC
 #define COLON_OFF  0xFF
 
-#define SEL_DIGIT_1 0x40
+#define SEL_DIGIT_1 0x40 
 #define SEL_DIGIT_2 0x30
 #define SEL_DIGIT_3 0x10
 #define SEL_DIGIT_4 0x00
@@ -69,8 +69,8 @@
 #define SET_CLK             0xFD
 #define SET_ALARM           0xFB
 
-volatile int16_t summed_value = 0;
-volatile uint8_t current_mode = NORMAL;
+//volatile int16_t summed_value = 0;
+uint8_t current_mode = NORMAL;
 int8_t hrs = 15;
 int8_t min = 13;
 uint8_t sec = 0;
@@ -241,9 +241,11 @@ void twelve_to_twfour() {
 }//twelve_to_twfour
 
 void twfour_to_twelve() {
-    if(hrs > 12)
+    if(hrs > 12) {
         hrs -= 12;
-}
+        AM = FALSE;
+    }
+}//twfour_to_twelve
 
 //******************************************************************************
 
@@ -323,13 +325,43 @@ void get_button_input() {
             break;
 
         case SET_CLK:
-            if(twelve_hr_format && chk_buttons(0))
-                AM ^= TRUE;
-            if(chk_buttons(1))
-                current_mode = NORMAL;
+
+            switch(twelve_hr_format)
+            {
+                case TRUE:
+                    if( chk_buttons(0))
+                        AM ^= TRUE;
+                    if(chk_buttons(1))
+                        current_mode = NORMAL;
+                    break;
+                case FALSE:
+                    if(chk_buttons(1))
+                        current_mode = NORMAL;
+                    break;
+            }
+
             break;
 
+
         case SET_ALARM:
+
+    //        switch(twelve_hr_format)
+    //       {
+    //            case TRUE:
+    //                if( chk_buttons(0))
+    //                    AM ^= TRUE;
+    //                if(chk_buttons(2)) 
+    //                    current_mode = NORMAL;
+    //                if(ckh_buttons(7)
+    //                    alarm_on ^= TRUE;
+    //                break;
+    //            case FALSE:
+    //                if(chk_buttons(2))
+    //                    current_mode = NORMAL;
+    //                break;
+    //        }
+
+    //        break;
             if(twelve_hr_format && chk_buttons(0))
                 AM ^= TRUE;
             if(chk_buttons(2))
@@ -362,7 +394,7 @@ void update_LEDs() {
 
     // make port A an output
     DDRA = 0xFF;
-
+    //TCCR2 |= (1 << COM20) | (1 << COM21); 
     // make sure that port has changed direction 
     __asm__ __volatile__ ("nop");
     __asm__ __volatile__ ("nop");
@@ -379,6 +411,7 @@ void update_LEDs() {
         _delay_ms(0.5);
     }
     PORTA = OFF; // turn off port to keep each segment on the same amount of time
+    //TCCR2 &= ~((1 << COM20) | (1 << COM21));
     __asm__ __volatile__ ("nop");
     __asm__ __volatile__ ("nop");
 
@@ -483,6 +516,7 @@ void encoder2_instruction(uint8_t encoder2_val) {
                         hrs = 0;
                     if(hrs < 0)
                         hrs = 23;
+                    break;
             }//switch
 
         case SET_ALARM:
@@ -503,8 +537,8 @@ void encoder2_instruction(uint8_t encoder2_val) {
                         alarm_hrs = 0;
                     if(alarm_hrs < 0)
                        alarm_hrs = 23;
+                    break;
             }//switch
-            break;
         //case NO_ADD:
              //do not add anything
         //    break;
@@ -631,10 +665,9 @@ ISR(TIMER0_OVF_vect) {
 
 }//Timer0 overflow ISR
 
-ISR(TIMER2_OVF_vect) {
+ISR(TIMER1_COMPA_vect) {
 
     PORTC &= ~(1 << 4);
-    //PORTC = 0x00;
     uint8_t old_DDRA = DDRA;
     uint8_t old_PORTA = PORTA;
     uint8_t old_PORTB = PORTB;
@@ -647,10 +680,16 @@ ISR(TIMER2_OVF_vect) {
     PORTA = old_PORTA;
     PORTB = old_PORTB;
 
-    //PORTC = 0x01;
     PORTC |= (1 << 4);
 
 }//Timer2 overflow ISR
+
+
+ISR(TIMER2_COMP_vect) {
+    PORTC &= ~(1 << 3);
+    PORTF ^= (1 << 0);
+    PORTC |= (1 << 3);
+}//Timer3 overflow ISR
 
 
 //***********************************************************************************
@@ -663,6 +702,7 @@ int main()
 // set port bits 4-7 B as outputs
 // set port bits 0-3 B as outputs (output mode for SS, MOSI, SCLK)
 DDRB = 0xF7;
+PINB = 0b1000;
 
 // initialize the real time clock and initial clock display
 real_clk_init();
@@ -674,9 +714,33 @@ DDRE = 0x03;
 PORTE = 0xFD;
 DDRC = 0xFF; // set as output for debugging
 
-// set up timer and interrupt
-TCCR2 |= (1 << CS21) | (1 << CS20); // set timer mode (normal, 128 prescalar)
-TIMSK |= (1 << TOIE2); // turn on timer interrupts
+
+//setup timer counter 1 to run in CTC mode. 
+TCCR1A |= (0<<COM1A1) | (0<<COM1A0);                // disable compare output pins 
+TCCR1B |= (0<<WGM13) | (1<<WGM12) | (1<<CS10);      //use OCR1A as source for TOP, use clk/1
+TCCR1C = 0x00;          //no forced compare 
+OCR1A = 0x8000;         //clear at 0x8000. 16MHz/0x8000 = 488.28Hz = 0.002 Sec
+TIMSK |= (1 << OCIE1A); // enable interrupt when timer resets
+
+//setup timer counter 3 as the interrupt source, 30 interrupts/sec
+// (16,000,000)/(8 * 2^16) = 30 cycles/sec
+//TCCR3A = 0x00;           //normal mode
+//TCCR3B = (1<<CS31);      //use clk/8  (15hz)  
+//TCCR3C = 0X00;           //no forced compare 
+//ETIMSK = (1<<TOIE3);     //enable timer 3 interrupt on TOV
+
+// set up timer and interrupt (16Mhz / 256 = 62,500Hz = 16uS)
+// OC2 will pulse PB7 which is what the LED board PWM pin is connected to
+TCCR2 |= (1 << WGM21) | (1 << WGM20) | (1 << COM20) \
+         | (1 << COM21) | (1 << CS21); // set timer mode (PWM, no prescalar, inverting)
+OCR2 = 0x09;
+//TIMSK |= (1 << OCIE2); // turn on timer interrupts
+
+// set up ADC
+//ADMUX = (1 << REFS0); // set reference voltage to external 5V
+//ADCSRA = (1 << ADEN) | (1 << ADIE) | (1 << ADPS0) \
+         (1 << ADPS1) | (1 << ADPS2); // enable ADC, enable interrupts, enable ADC0
+                                      // 128 prescaler (16,000,000/128 = 125,000)
 
 // set up SPI (master mode, clk low on idle, leading edge sample)
 SPCR = (1 << SPE) | (1 << MSTR) | (0 << CPOL) | (0 << CPHA);
@@ -688,7 +752,7 @@ send_lcd(0x00, 0x08); // turn diplay off
 sei(); // enable global interrupts
 
 while(1){
-   
+PORTC &= ~(1 << 6);   
     switch(current_mode)
     {
         case NORMAL:
@@ -702,7 +766,7 @@ while(1){
             break;
     }//switch
     update_LEDs();
-    
+PORTC |= (1 << 6);
 }//while
 
 return 0;
