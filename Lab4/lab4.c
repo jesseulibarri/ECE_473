@@ -89,6 +89,7 @@ int8_t min = 13;
 uint8_t sec = 0;
 int8_t alarm_hrs = 1;
 int8_t alarm_min = 0;
+uint8_t alarm_AM = FALSE;
 uint8_t Colon_Status = FALSE;
 uint8_t AM = FALSE;
 uint8_t twelve_hr_format = FALSE;
@@ -172,12 +173,16 @@ void format_clk_array(uint8_t hours, uint8_t minutes) {
     if(TCNT0 == 128) 
         Colon_Status = TRUE;
 
+    if(current_mode == SET_ALARM && !alarm_AM && twelve_hr_format)
+        segment_data[0] &= ~(1 << 7);
+
     // Determine if it is AM or PM
-    if(!AM && twelve_hr_format)
+    else if(!AM && twelve_hr_format)
         segment_data[0] &= ~(1 << 7); //turn on last DP
 
     if(alarm_on)
         segment_data[4] &= ~(1 << 7);
+
 
     switch(Colon_Status)
     {
@@ -383,7 +388,7 @@ void get_button_input() {
 
     //        break;
             if(twelve_hr_format && chk_buttons(0))
-                AM ^= TRUE;
+                alarm_AM ^= TRUE;
             if(chk_buttons(2))
                 current_mode = NORMAL;
             if(chk_buttons(7))
@@ -732,8 +737,8 @@ format_clk_array(hrs, min);
 // encoder is on PORTE
 DDRE = 0x03;
 PORTE = 0xFD;
-DDRC = 0xFF; // set as output for debugging
-
+DDRF = 0xFF; // make pin 0 GND, and pin 1 HIGH
+PORTF = 0b0010;
 
 //setup timer counter 1 to run in CTC mode. 
 TCCR1A |= (0<<COM1A1) | (0<<COM1A0);                // disable compare output pins 
