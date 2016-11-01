@@ -117,15 +117,17 @@ void real_clk_init() {
 }//real_clk_intit
 
 
-//******************************************************************************
-//                            chk_buttons                                      
-//Checks the state of the button number passed to it. It shifts in ones till   
-//the button is pushed. Function returns a 1 only once per debounced button    
-//push so a debounce and toggle function can be implemented at the same time.  
-//Adapted to check all buttons from Ganssel's "Guide to Debouncing"            
-//Expects active low pushbuttons on PINA port.  Debounce time is determined by 
-//external loop delay times 12. 
-//
+/******************************************************************************
+* Function: chk_buttons
+* Parameters: uint8_t "button"
+* Return: True if button pushed
+* Description: Checks the state of the button number passed to it. It shifts in ones till   
+*   the button is pushed. Function returns a 1 only once per debounced button    
+*   push so a debounce and toggle function can be implemented at the same time.  
+*   Adapted to check all buttons from Ganssel's "Guide to Debouncing"            
+*   Expects active low pushbuttons on PINA port.  Debounce time is determined by 
+*   external loop delay times 12. 
+*******************************************************************************/
     
 uint8_t chk_buttons(uint8_t button) {
     static uint16_t state[8] = {0};
