@@ -1,5 +1,0 @@
-#!/bin/bash
-wget http://www.ece.orst.edu/~traylor/ece473/inclass_exercises/timers_and_counters/stim_timer/Makefile
-wget http://www.ece.orst.edu/~traylor/ece473/inclass_exercises/timers_and_counters/stim_timer/LCDDriver.c
-wget http://www.ece.orst.edu/~traylor/ece473/inclass_exercises/timers_and_counters/stim_timer/LCDDriver.h
-wget http://www.ece.orst.edu/~traylor/ece473/inclass_exercises/timers_and_counters/stim_timer/stim_timer_skel.c

@@ -58,12 +58,12 @@ int main(void)
         SPCR = 0x00; // disable SPI so that PORTB can be used for LEDs
 
         // Set up Timer Counter 0   
-*        TCCR0 &= ~((1 << WGM00) | (1 << WGM01) | (1 << CS00) | (1 << CS01) | (1 << CS02));  //normal mode, clock disabled
-*        TIMSK &= ~((1 << OCIE0) | (1 << TOIE0));          //disable _all_ TC0 interrupts	
-*        TIFR  = (1 << TOV0);                          //manually clear overflow flag
+        TCCR0 = 0x00;                      //normal mode, clock disabled
+        TIMSK = 0x00;    					//disable _all_ TC0 interrupts	
+        TIFR  |= (1<<TOV0);               //manually clear overflow flag
 
         // start the timer with a 1024 prescaler;  16MHz/1024 = 15.625 KHz
-*        TCCR0 |= (1 << CS00) | (1 << CS01) | (1 << CS02); 
+        TCCR0 |= (1<<CS00)|(1<<CS01)|(1<<CS02);
 
         //Need to randomly wait between 2-10 seconds. Since it takes 
         //1.64 ms for the 8 bit timer to overflow, we need to loop between 
@@ -75,36 +75,35 @@ int main(void)
         numIterations += 122; //numIterations should now be between (122 - 610)
     
         do {
-    	 while(                               ) {}; //spin till TC0 OVF flag set
-*    	 TIFR = (1 << TOV0)                                     //manually clear TC0 OVF flag
+    	 while(bit_is_clear(TIFR,TOV0)) {}; //spin till TC0 OVF flag set
+    	 TIFR |= (1<<TOV0);                //manually clear TC0 OVF flag
     	 //note: the counter will automatically keep counting upward again
     	 numIterations--; // decrement number of iterations
            } while (numIterations > 0);
 
-         //disable the TC0 timer
-*        TCCR0 |= ~((1 << CS00) | (1 << CS01) | (1 << CS02));
+        TCCR0 = 0x00;              //disable the TC0 timer
 
         state = SR_TIMING_USER;  //progress to TIMING_USER state
         break;
     }
     case SR_TIMING_USER: {
       //Set up TCNT1 to measure the user's reaction time
-*      TCCR1B &= ~((1 << ICNC1) | (1 << WGM12) | (1 << CS00) | (1 << CS01) | (1 << CS02));  //disable noise canceler, set WGM1{3,2} to 0, disable clock
-*      TCCR1A = 0x00;                  //disable all output compare pins and set WGM1{1,0} to 0
+      TCCR1B &= ~((1<<ICNC1)|(1<<WGM13)|(1<<WGM12)|0x07); //disable noise canceler, set WGM1{3,2} to 0, disable clock
+      TCCR1A =  0x00;                 //disable all output compare pins and set WGM1{1,0} to 0
 
-*      TIMSK  &= ~((                                    //disable all TCNT1 interrupts in here
-*      ETIMSK =                                     //and in here
-*      TIFR   =                                     // manually clear the TC1 overflow flag
-*      TCNT1  =                                     // initialize TCNT counter to 0
+      TIMSK  &= ~((1<<TOIE1)|(1<<OCIE1B)|(1<<OCIE1A)|(1<<TICIE1));                       //disable all TCNT1 interrupts in here
+      ETIMSK &= ~((1<<OCIE1C));                                     //and in here
+      TIFR   |=(1<<TOV1);                                     // manually clear the TC1 overflow flag
+      TCNT1  = 0x0000;       // initialize TCNT counter to 0
 
       //Count the number of ticks until a button is pressed. Start the timer with a 1024 prescaler.
       //16MHz / 1024 = 15.625 KHz
-*      TCCR1B                                              // start TC1 counter
+      TCCR1B |= (1<<CS10)|(1<<CS12);                                             // start TC1 counter
       PORTB = 0xFF; // light all LEDs so the user knows to push the button
 
       while ( ((TIFR & (1 << TOV1)) == 0) && (PIND == 0xFF) ) {}; // wait until button pressed or TC1 OVF set
       numticks = TCNT1;
-*      TCCR1B =                     // stop the TC1 counter
+      TCCR1B &= ~(0x07);        // stop the TC1 counter
       // note that the count is now stored in TCNT1
       state = SR_RESULTS; // progress to RESULTS state
       break;
