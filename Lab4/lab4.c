@@ -298,7 +298,7 @@ uint8_t SPI_read() {
     // Here is an example of internal commenting used to describe several lines 
     // of code.
     if(1) {
-        PORTE = 0x00; //shift data into encoder register
+        PORTE = 0x00; //shift data from encoder into it's internal register
         __asm__ __volatile__ ("nop");
         __asm__ __volatile__ ("nop");
         PORTE = 0x01; //end shift
@@ -308,7 +308,7 @@ uint8_t SPI_read() {
     }//if
     return SPDR;
 
-}//SPI_receive
+}//SPI_read
 
 //******************************************************************************
 
