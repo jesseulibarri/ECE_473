@@ -1,5 +1,18 @@
-//Author: Jesse Ulibarri
-//Date: 10/17/16
+
+
+/**********************************************************************
+ * Copywrite: NONE
+ * Original Author(s): Jesse Ulibarri
+ * Original Date: 10/17/16
+ * Version: Lab4.1
+ * Description: ATMega128 will track real time to be displayed on the
+ *  seven-segment, five-digit board. Eight-button board will receive
+ *  user input and change the system's state. Based on the state,
+ *  users will be able to change the current time and alarm time by
+ *  using the encoder board. Current system state will be displayed 
+ *  on the  LED graph board.
+ *********************************************************************/
+
 //Class: ECE 473
 //Assignment: Lab3
 
