@@ -293,15 +293,20 @@ void SPI_send(uint8_t message) {
 //
 // NOT IN USE
 
-uint8_t SPI_read() { 
-    PORTE = 0x00; //shift data into encoder register
-    __asm__ __volatile__ ("nop");
-    __asm__ __volatile__ ("nop");
-    PORTE = 0x01; //end shift
+uint8_t SPI_read() {
 
-    SPDR = 0x00; // send junk to initialize SPI return
-    while(bit_is_clear(SPSR, SPIF)) {} // wait until data is recieved
-    return SPDR; // return data from device
+    // Here is an example of internal commenting used to describe several lines 
+    // of code.
+    if(1) {
+        PORTE = 0x00; //shift data into encoder register
+        __asm__ __volatile__ ("nop");
+        __asm__ __volatile__ ("nop");
+        PORTE = 0x01; //end shift
+
+        SPDR = 0x00; // send junk to initialize SPI return
+        while(bit_is_clear(SPSR, SPIF)) {} // wait until data is recieved
+    }//if
+    return SPDR;
 
 }//SPI_receive
 
