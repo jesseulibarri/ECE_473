@@ -84,8 +84,8 @@
 
 //volatile int16_t summed_value = 0;
 uint8_t current_mode = NORMAL;
-int8_t hrs = 15;
-int8_t min = 13;
+int8_t hrs = 10;
+int8_t min = 5;
 uint8_t sec = 0;
 int8_t alarm_hrs = 1;
 int8_t alarm_min = 0;
@@ -370,23 +370,23 @@ void get_button_input() {
 
         case SET_ALARM:
 
-    //        switch(twelve_hr_format)
-    //       {
-    //            case TRUE:
-    //                if( chk_buttons(0))
-    //                    AM ^= TRUE;
-    //                if(chk_buttons(2)) 
-    //                    current_mode = NORMAL;
-    //                if(ckh_buttons(7)
-    //                    alarm_on ^= TRUE;
-    //                break;
-    //            case FALSE:
-    //                if(chk_buttons(2))
-    //                    current_mode = NORMAL;
-    //                break;
-    //        }
+            /*switch(twelve_hr_format)
+            {
+                case TRUE:
+                    if( chk_buttons(0))
+                        AM ^= TRUE;
+                    if(chk_buttons(2)) 
+                        current_mode = NORMAL;
+                    if(ckh_buttons(7)
+                        alarm_on ^= TRUE;
+                    break;
+                case FALSE:
+                    if(chk_buttons(2))
+                        current_mode = NORMAL;
+                    break;
+            }
 
-    //        break;
+            break; */
             if(twelve_hr_format && chk_buttons(0))
                 alarm_AM ^= TRUE;
             if(chk_buttons(2))
@@ -467,7 +467,7 @@ void encoder1_instruction(uint8_t encoder1_val) {
     switch(current_mode) 
     {
         case NORMAL:
-            //do not do anything
+            //do not do anything - shouldn't ever get here
             break;
         case SET_CLK:
             add = enc_lookup[encoder1_hist & 0b1111]; //add one
@@ -521,7 +521,7 @@ void encoder2_instruction(uint8_t encoder2_val) {
     switch(current_mode) 
     {
         case NORMAL:
-            //do not do anything
+            //do not do anything - shouldn't ever get here
             break;
         case SET_CLK:
             add = enc_lookup[encoder2_hist & 0b1111]; //add one
@@ -654,6 +654,8 @@ void mode_handler() {
 
             SPI_function();
 
+            // TODO: could put this line the "get button input" function when
+            // changing back to NORMAL mode.
             TCCR0 |= (1 << CS02) | (1 << CS00); //turn clock back on
             break;
 
@@ -692,7 +694,7 @@ ISR(TIMER0_OVF_vect) {
 
 ISR(TIMER1_COMPA_vect) {
 
-    PORTC &= ~(1 << 4);
+   // PORTC &= ~(1 << 4);
     uint8_t old_DDRA = DDRA;
     uint8_t old_PORTA = PORTA;
     uint8_t old_PORTB = PORTB;
@@ -705,7 +707,7 @@ ISR(TIMER1_COMPA_vect) {
     PORTA = old_PORTA;
     PORTB = old_PORTB;
 
-    PORTC |= (1 << 4);
+   // PORTC |= (1 << 4);
 
 }//Timer2 overflow ISR
 
@@ -715,6 +717,11 @@ ISR(TIMER2_COMP_vect) {
     PORTF ^= (1 << 0);
     PORTC |= (1 << 3);
 }//Timer3 overflow ISR
+
+
+ISR(TIMER3_COMPA_vect) {
+    PORTC ^= (1 << 0);
+}
 
 
 //***********************************************************************************
@@ -737,8 +744,9 @@ format_clk_array(hrs, min);
 // encoder is on PORTE
 DDRE = 0x03;
 PORTE = 0xFD;
-DDRF = 0xFF; // make pin 0 GND, and pin 1 HIGH
-PORTF = 0b0010;
+DDRC = 0xFF;
+//DDRF = 0xFF; // make pin 0 GND, and pin 1 HIGH
+//PORTF = 0b0010;
 
 //setup timer counter 1 to run in CTC mode. 
 TCCR1A |= (0<<COM1A1) | (0<<COM1A0);                // disable compare output pins 
@@ -749,16 +757,17 @@ TIMSK |= (1 << OCIE1A); // enable interrupt when timer resets
 
 //setup timer counter 3 as the interrupt source, 30 interrupts/sec
 // (16,000,000)/(8 * 2^16) = 30 cycles/sec
-//TCCR3A = 0x00;           //normal mode
-//TCCR3B = (1<<CS31);      //use clk/8  (15hz)  
-//TCCR3C = 0X00;           //no forced compare 
-//ETIMSK = (1<<TOIE3);     //enable timer 3 interrupt on TOV
+TCCR3A = 0x00;           //normal mode
+TCCR3B |= (1 << WGM32) | (1<<CS31);      //use clk/8  (15hz)  
+TCCR3C = 0X00;           //no forced compare 
+OCR3A = 10000;
+ETIMSK = (1<<OCIE3A);     //enable timer 3 interrupt on TOV
 
 // set up timer and interrupt (16Mhz / 256 = 62,500Hz = 16uS)
 // OC2 will pulse PB7 which is what the LED board PWM pin is connected to
 TCCR2 |= (1 << WGM21) | (1 << WGM20) | (1 << COM20) \
          | (1 << COM21) | (1 << CS21); // set timer mode (PWM, no prescalar, inverting)
-OCR2 = 0x09;
+OCR2 = 0xF9;
 //TIMSK |= (1 << OCIE2); // turn on timer interrupts
 
 // set up ADC
