@@ -1,5 +1,5 @@
-PRG            = adc
-OBJ            = adc.o hd44780.o
+PRG            = adc_skel
+OBJ            = adc_skel.o hd44780.o
 MCU_TARGET     = atmega128
 OPTIMIZE       = -O2    # options are 1, 2, 3, s
 DEFS           =

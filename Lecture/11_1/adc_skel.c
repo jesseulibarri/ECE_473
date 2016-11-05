@@ -41,16 +41,16 @@ clear_display();
 DDRF  &= ~(_BV(DDF7)); //make port F bit 7 is ADC input  
 PORTF &= ~(_BV(PF7));  //port F bit 7 pullups must be off
 
-____________________________ //single-ended, input PORTF bit 7, right adjusted, 10 bits
+ADMUX = (1<<REFS1) | (1<<MUX0) | (1<<MUX1) | (1<<MUX2); //single-ended, input PORTF bit 7, right adjusted, 10 bits
 
-____________________________ //ADC enabled, don't start yet, single shot mode 
+ADCSRA = (1<<ADEN) | (1<<ADPS0) | (1<<ADPS1) | (1<<ADPS2); //ADC enabled, don't start yet, single shot mode 
                              //division factor is 128 (125khz)
 while(1){ 
-  ______________________________________ //poke ADSC and start conversion
+  ADCSRA |= (1<<ADSC); //poke ADSC and start conversion
 
-  ______________________________________ //spin while interrupt flag not set
+  while(bit_is_clear(ADCSRA,ADIF)); //spin while interrupt flag not set
 
-  ______________________________________ //its done, clear flag by writing a one 
+  ADCSRA |= (1<<ADIF); //its done, clear flag by writing a one 
 
   adc_result = ADC;                      //read the ADC output as 16 bits
 
