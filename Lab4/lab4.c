@@ -92,7 +92,7 @@ int8_t alarm_min = 0;
 uint8_t alarm_AM = FALSE;
 uint8_t Colon_Status = FALSE;
 uint8_t AM = FALSE;
-uint8_t twelve_hr_format = FALSE;
+uint8_t twelve_hr_format = TRUE;
 uint8_t alarm_on = FALSE;
 
 uint8_t alarm_msg[16] = {'A', 'L', 'A', 'R', 'M', ' ',  ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '};
@@ -497,7 +497,7 @@ void encoder1_instruction(uint8_t encoder1_val) {
             if(min < 0)
                 min = 59;
 
-            break;
+            break; //SET_CLK
         case SET_ALARM:
             add = enc_lookup[encoder1_hist & 0b1111]; //add four
             alarm_min += add; // add number to sum
@@ -508,10 +508,8 @@ void encoder1_instruction(uint8_t encoder1_val) {
             if(alarm_min < 0)
                 alarm_min = 59;
 
-            break;
-        //case NO_ADD:
-             //do not add anything
-        //    break;
+            break; //SET_ALARM
+
         default:
             break;
 
@@ -561,10 +559,11 @@ void encoder2_instruction(uint8_t encoder2_val) {
                         hrs = 23;
                     break;
             }//switch
+            break; //SET_CLK
 
         case SET_ALARM:
-            add = enc_lookup[encoder2_hist & 0b1111]; //add four
-            alarm_hrs += add; // add number to sum
+            add = enc_lookup[encoder2_hist & 0b1111];
+            alarm_hrs += add;
 
             //bound the new hours setting
             switch(twelve_hr_format)
@@ -582,9 +581,8 @@ void encoder2_instruction(uint8_t encoder2_val) {
                        alarm_hrs = 23;
                     break;
             }//switch
-        //case NO_ADD:
-             //do not add anything
-        //    break;
+        break; //SET_ALARM
+
         default:
             break;
 
