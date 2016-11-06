@@ -82,6 +82,8 @@
 #define SET_CLK             0xBF
 #define SET_ALARM           0xDF
 
+#define VOL_COMPARE vol_duty_cycle / 100 * 0x8000
+
 //volatile int16_t summed_value = 0;
 uint8_t current_mode = NORMAL;
 int8_t hrs = 10;
@@ -94,6 +96,9 @@ uint8_t Colon_Status = FALSE;
 uint8_t AM = FALSE;
 uint8_t twelve_hr_format = TRUE;
 uint8_t alarm_on = FALSE;
+
+//variable defines what duty cycle to run the volume at. Do not go above 60
+uint16_t vol_duty_cycle = 10;
 
 uint8_t alarm_msg[16] = {'A', 'L', 'A', 'R', 'M', ' ',  ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '};
 
@@ -708,7 +713,7 @@ ISR(TIMER0_OVF_vect) {
 
 }//Timer0 overflow ISR
 
-ISR(TIMER1_COMPA_vect) {
+ISR(TIMER3_OVF_vect) {
 
    // PORTC &= ~(1 << 4);
     // Start ADC conversion
@@ -739,9 +744,9 @@ ISR(TIMER2_COMP_vect) {
 }//Timer3 overflow ISR
 
 
-ISR(TIMER3_COMPA_vect) {
+/*ISR(TIMER3_COMPA_vect) {
     PORTC ^= (1 << 0);
-}
+}*/
 
 //ISR(ADC_vect) {
     //OCR2 = (ADC < 100) ? (100-ADC) : 1;
@@ -768,8 +773,8 @@ format_clk_array(hrs, min);
 
 
 // encoder is on PORTE
-DDRE = 0x03;
-PORTE = 0xFD;
+// volume is tied to OC3A on PE3
+DDRE = 0xFF;
 DDRC = 0xFF;
 //DDRF = 0xFF; // make pin 0 GND, and pin 1 HIGH
 //PORTF = 0b0010;
@@ -779,19 +784,22 @@ DDRC = 0xFF;
 
 
 //setup timer counter 1 to run in CTC mode. 
-TCCR1A |= (0<<COM1A1) | (0<<COM1A0);                // disable compare output pins 
+/*TCCR1A |= (0<<COM1A1) | (0<<COM1A0);                // disable compare output pins 
 TCCR1B |= (0<<WGM13) | (1<<WGM12) | (1<<CS10);      //use OCR1A as source for TOP, use clk/1
 TCCR1C = 0x00;          //no forced compare 
 OCR1A = 0x8000;         //clear at 0x8000. 16MHz/0x8000 = 488.28Hz = 0.002 Sec
 TIMSK |= (1 << OCIE1A); // enable interrupt when timer resets
+*/
 
 //setup timer counter 3 as the interrupt source, 30 interrupts/sec
-// (16,000,000)/(8 * 2^16) = 30 cycles/sec
-//TCCR3A = 0x00;           //normal mode
-//TCCR3B |= (1 << WGM32) | (1<<CS31);      //use clk/8  (15hz)  
-//TCCR3C = 0X00;           //no forced compare 
-//OCR3A = 10000;
-//ETIMSK = (1<<OCIE3A);     //enable timer 3 interrupt on TOV
+// (16,000,000)/(32,768) = 488 cycles/sec
+TCCR3A |= (1 << COM3B1) | (1 << WGM30) |  (1 << WGM31); //fast PWM mode, non-inverting
+TCCR3B |= (1 << WGM32) | (1 << WGM33) | (1 << CS30); //fast PWM and clk/1  (488hz)  
+//TCCR3C = 0X00;          //no forced compare
+OCR3A = 0x8000;          //define TOP of counter
+OCR3B = VOL_COMPARE; //define the volume dc in the compare register
+ETIMSK = (1 << TOIE3);   //enable interrupt on overflow and compare,
+                         //check buttons and get new duty cycle, 
 
 // set up timer and interrupt (16Mhz / 256 = 62,500Hz = 16uS)
 // OC2 will pulse PB7 which is what the LED board PWM pin is connected to
