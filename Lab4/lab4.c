@@ -743,9 +743,9 @@ ISR(TIMER2_COMP_vect) {
 }//Timer3 overflow ISR
 
 
-/*ISR(TIMER3_COMPA_vect) {
+ISR(TIMER1_COMPB_vect) {
     PORTC ^= (1 << 0);
-}*/
+}
 
 ISR(ADC_vect) {
     OCR2 = ADCH;
@@ -772,17 +772,19 @@ format_clk_array(hrs, min);
 // encoder is on PORTE
 // volume is tied to OC3A on PE3
 DDRE = 0xFF;
-DDRC = 0xFF;
+//Alarm tone is generated on PC0
+DDRC = 0x01;
 //DDRF = 0xFF; // make pin 0 GND, and pin 1 HIGH
 //PORTF = 0b0010;
 
 //setup timer counter 1 to run in CTC mode. 
-/*TCCR1A |= (0<<COM1A1) | (0<<COM1A0);                // disable compare output pins 
-TCCR1B |= (0<<WGM13) | (1<<WGM12) | (1<<CS10);      //use OCR1A as source for TOP, use clk/1
+TCCR1A |= (1 << WGM10) | (1 << WGM11); // fast PWM mode, OC pin disabled 
+TCCR1B |= (1 << WGM12) | (1 << WGM13) | (1<<CS10);     //use OCR1A as source for TOP, use clk/1
 TCCR1C = 0x00;          //no forced compare 
 OCR1A = 0x8000;         //clear at 0x8000. 16MHz/0x8000 = 488.28Hz = 0.002 Sec
-TIMSK |= (1 << OCIE1A); // enable interrupt when timer resets
-*/
+OCR1B = 0x2000;
+TIMSK |= (1 << OCIE1B); // enable interrupt when timer resets
+
 
 //setup timer counter 3 as the interrupt source, 30 interrupts/sec
 // (16,000,000)/(32,768) = 488 cycles/sec
@@ -790,7 +792,7 @@ TCCR3A |= (1 << COM3B1) | (1 << WGM30) |  (1 << WGM31); //fast PWM mode, non-inv
 TCCR3B |= (1 << WGM32) | (1 << WGM33) | (1 << CS30); //fast PWM and clk/1  (488hz)  
 //TCCR3C = 0X00;         //no forced compare
 OCR3A = 0x8000;          //define TOP of counter
-OCR3B = 0x2AAA;          //define the volume dc in the compare register
+OCR3B = 0x4000;          //define the volume dc in the compare register
 ETIMSK = (1 << TOIE3);   //enable interrupt on overflow and compare,
                          //check buttons and get new duty cycle, 
 
