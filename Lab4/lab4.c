@@ -117,7 +117,6 @@ int8_t enc_lookup[16] = {0,0,0,0,0,0,0,1,0,0,0,-1,0,0,0,0};
 //******************************************************************************
 //                            Clock_Init
 //
-//******************************************************************************
 // External clock runs at 32kHz.
 // Elapsed time = 32,768Hz / (256 * 128) = 1 sec
 
@@ -137,7 +136,6 @@ void real_clk_init() {
 
 /******************************************************************************
 * Function: chk_buttons
-*******************************************************************************
 * Parameters: uint8_t "button"
 * Return: True if button pushed
 * Description: Checks the state of the button number passed to it. It shifts in ones till   
@@ -157,11 +155,10 @@ uint8_t chk_buttons(uint8_t button) {
 }//chk_buttons
 
                                                  
+//******************************************************************************
 
 //***********************************************************************************
 //                             format_clk_array
-//
-//******************************************************************************
 //takes a 16-bit binary input value and places the appropriate equivalent 4 digit 
 //BCD segment code in the array segment_data for display.                       
 //array is loaded at exit as:  |digit3|digit2|colon|digit1|digit0|
@@ -201,12 +198,11 @@ void format_clk_array(uint8_t hours, uint8_t minutes) {
             break;
     }//switch
 }//segment_sum
-
+//***********************************************************************************
 
 //***********************************************************************************
 //                                   Set Boundaries
 //
-//******************************************************************************
 // This function bounds the current count to within the max limit. It then calls the 
 // segsum function which will format our value into the segment data array.
 
@@ -248,9 +244,9 @@ void clk_boundary() {
 //***********************************************************************************
 //                                   Step Time Forward
 //
-//******************************************************************************
 
 void step_time() {
+
 
     Colon_Status = FALSE;   // part of colon "one-shot". Turn colon OFF every interrupt
     sec += 1;               // increment the second count
@@ -263,7 +259,6 @@ void step_time() {
 //***********************************************************************************
 //                                   Change Format
 //
-//******************************************************************************
 
 void twelve_to_twfour() {
     if(!AM)
@@ -277,11 +272,10 @@ void twfour_to_twelve() {
     }
 }//twfour_to_twelve
 
+//******************************************************************************
 
 //***********************************************************************************
 //                                   SPI send information
-//
-//******************************************************************************
 // Function will take in a message to send through SPI. It will write the data to the
 // SPI data register and then wait for the message to send before returning.
 //
@@ -298,10 +292,10 @@ void SPI_send(uint8_t message) {
 
 
 
+//******************************************************************************
+
 //***********************************************************************************
 //                                   SPI read information
-//
-//******************************************************************************
 // Function will read any data coming through the SPI communication bus. It will write 
 // a garbage value to the SPI data register to initialize communication and then wait
 // for the data to be sent. At this time, any incoming data has entered the SPI data
@@ -326,11 +320,11 @@ uint8_t SPI_read() {
 
 }//SPI_read
 
+//******************************************************************************
 
 //***********************************************************************************
 //                                   get_button_input
 //
-//******************************************************************************
 // Function will get any input from the button board and load the information
 // into the segment_data array.
 
@@ -397,7 +391,6 @@ void get_button_input() {
                         current_mode = NORMAL;
                     break;
             }
-
             break; */
             if(twelve_hr_format && chk_buttons(0))
     //       {
@@ -432,11 +425,11 @@ void get_button_input() {
 }//get_button_input
 
 
+//******************************************************************************
 
 //***********************************************************************************
 //                                   update_LEDs
 //
-//******************************************************************************
 // Function will send the data in the segment data array to the 7-segment board and 
 // then wait 0.5 ms on each value to allow the LED to be on long enough to produce 
 // a bright output.
@@ -472,11 +465,15 @@ void update_LEDs() {
 }//update_LEDs
 
 
+//******************************************************************************
+
+
+
+//******************************************************************************
 
 //***********************************************************************************
 //                                   Encoder 1
 // 
-//******************************************************************************
 // Function will receive the raw data brought in from the encoder board, interperate
 // the data, and add the correct value to the sum variable based on the recieved 
 // encoder status and current mode.
@@ -525,10 +522,11 @@ void encoder1_instruction(uint8_t encoder1_val) {
 }//get_encoder1
 
 
+//******************************************************************************
+
 //***********************************************************************************
 //                                   Encoder 2
 // 
-//***********************************************************************************
 // This function is the same as the encoder1 function except that it will interperate
 // the data coming from encoder 2.
 //
@@ -597,10 +595,11 @@ void encoder2_instruction(uint8_t encoder2_val) {
 }//encoder2
 
 
+//******************************************************************************
+
 //***********************************************************************************
 //                                   SPI Total Functionallity
 //
-//***********************************************************************************
 // Function will send the current mode data to the graph board and receive data from
 // the encoder at the same time. It will then call the encoders 1 and 2 functions 
 // to interperate the encoder data.
@@ -631,23 +630,23 @@ void SPI_function() {
 }//SPI_function
 
 
+//******************************************************************************
+
+
 //***********************************************************************************
 //                                   mode_handler
 //
-//***********************************************************************************
 void mode_handler() {
 
     switch(current_mode)
     {
 
 //********************************* NORMAL MODE **************************************
-//***********************************************************************************
         case NORMAL:
             //do not do anything
             break;
 
 //*************************** TOGGLE CLOCK FORMAT MODE *******************************
-//***********************************************************************************
         case TOGGLE_CLK_FORMAT:
             twelve_hr_format ^= TRUE; //if change format button is pushed, toggle
             
@@ -666,7 +665,6 @@ void mode_handler() {
             break;
 
 //***************************** SET CLOCK MODE *************************************
-//***********************************************************************************
         case SET_CLK:
 
             TCCR0 = (0 << CS00) | (0 << CS01) | (0 << CS02); //disable real clock
@@ -682,7 +680,6 @@ void mode_handler() {
             break;
 
 //***************************** SET ALARM MODE *************************************
-//***********************************************************************************
         case SET_ALARM:
             
             format_clk_array(alarm_hrs, alarm_min);
@@ -707,7 +704,6 @@ void mode_handler() {
 //***********************************************************************************
 //                                   Interrupt Routine
 //
-//***********************************************************************************
 ISR(TIMER0_OVF_vect) {
     
     PORTC &= ~(1 << 0);
@@ -718,7 +714,7 @@ ISR(TIMER0_OVF_vect) {
 
 ISR(TIMER3_OVF_vect) {
 
-   // PORTC &= ~(1 << 4);
+    //PORTC &= ~(1 << 4);
     // Start ADC conversion
     ADCSRA |= (1 << ADSC);
 
@@ -753,13 +749,12 @@ ISR(TIMER2_COMP_vect) {
 
 ISR(ADC_vect) {
     OCR2 = ADCH;
-}//ADC conversion ISR
+}
 
 
 //***********************************************************************************
 //***********************************************************************************
 //                                   MAIN
-//***********************************************************************************
 
 int main()
 {
@@ -781,23 +776,22 @@ DDRC = 0xFF;
 //DDRF = 0xFF; // make pin 0 GND, and pin 1 HIGH
 //PORTF = 0b0010;
 
-
-
 //setup timer counter 1 to run in CTC mode. 
-TCCR1A |= (0<<COM1A1) | (0<<COM1A0);                // disable compare output pins 
+/*TCCR1A |= (0<<COM1A1) | (0<<COM1A0);                // disable compare output pins 
 TCCR1B |= (0<<WGM13) | (1<<WGM12) | (1<<CS10);      //use OCR1A as source for TOP, use clk/1
 TCCR1C = 0x00;          //no forced compare 
 OCR1A = 0x8000;         //clear at 0x8000. 16MHz/0x8000 = 488.28Hz = 0.002 Sec
 TIMSK |= (1 << OCIE1A); // enable interrupt when timer resets
-
+*/
 
 //setup timer counter 3 as the interrupt source, 30 interrupts/sec
 // (16,000,000)/(32,768) = 488 cycles/sec
 TCCR3A |= (1 << COM3B1) | (1 << WGM30) |  (1 << WGM31); //fast PWM mode, non-inverting
 TCCR3B |= (1 << WGM32) | (1 << WGM33) | (1 << CS30); //fast PWM and clk/1  (488hz)  
-//TCCR3C = 0X00;          //no forced compare
-OCR3B = 0x2AAA; //define the volume dc in the compare register
-//ETIMSK = (1 << TOIE3);   //enable interrupt on overflow and compare,
+//TCCR3C = 0X00;         //no forced compare
+OCR3A = 0x8000;          //define TOP of counter
+OCR3B = 0x2AAA;          //define the volume dc in the compare register
+ETIMSK = (1 << TOIE3);   //enable interrupt on overflow and compare,
                          //check buttons and get new duty cycle, 
 
 // set up timer and interrupt (16Mhz / 256 = 62,500Hz = 16uS)
@@ -843,4 +837,3 @@ while(1){
 
 return 0;
 }//main
-
