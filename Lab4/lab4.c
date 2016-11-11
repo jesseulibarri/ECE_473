@@ -798,9 +798,13 @@ TCCR3B |= (1 << WGM32) | (1 << WGM33) | (1 << CS30); //fast PWM and clk/1  (488h
 //TCCR3C = 0X00;          //no forced compare
 OCR3A = 0x8000;          //define TOP of counter
 <<<<<<< HEAD
+<<<<<<< HEAD
 OCR3B = 0x2AAA; //define the volume dc in the compare register
 //ETIMSK = (1 << TOIE3);   //enable interrupt on overflow and compare,
 OCR3B = vol_comp_val; //define the volume dc in the compare register
+=======
+OCR3B = VOL_COMPARE; //define the volume dc in the compare register
+>>>>>>> parent of 6c4ecf6... Next update
 =======
 OCR3B = VOL_COMPARE; //define the volume dc in the compare register
 >>>>>>> parent of 6c4ecf6... Next update
