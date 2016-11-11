@@ -796,19 +796,8 @@ TIMSK |= (1 << OCIE1A); // enable interrupt when timer resets
 TCCR3A |= (1 << COM3B1) | (1 << WGM30) |  (1 << WGM31); //fast PWM mode, non-inverting
 TCCR3B |= (1 << WGM32) | (1 << WGM33) | (1 << CS30); //fast PWM and clk/1  (488hz)  
 //TCCR3C = 0X00;          //no forced compare
-OCR3A = 0x8000;          //define TOP of counter
-<<<<<<< HEAD
-<<<<<<< HEAD
 OCR3B = 0x2AAA; //define the volume dc in the compare register
 //ETIMSK = (1 << TOIE3);   //enable interrupt on overflow and compare,
-OCR3B = vol_comp_val; //define the volume dc in the compare register
-=======
-OCR3B = VOL_COMPARE; //define the volume dc in the compare register
->>>>>>> parent of 6c4ecf6... Next update
-=======
-OCR3B = VOL_COMPARE; //define the volume dc in the compare register
->>>>>>> parent of 6c4ecf6... Next update
-ETIMSK = (1 << TOIE3);   //enable interrupt on overflow and compare,
                          //check buttons and get new duty cycle, 
 
 // set up timer and interrupt (16Mhz / 256 = 62,500Hz = 16uS)
