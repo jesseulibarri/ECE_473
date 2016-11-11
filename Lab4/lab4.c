@@ -82,6 +82,7 @@
 #define SET_CLK             0xBF
 #define SET_ALARM           0xDF
 
+#define VOL_COMPARE vol_duty_cycle / 100 * 0x8000
 
 //volatile int16_t summed_value = 0;
 uint8_t current_mode = NORMAL;
@@ -97,8 +98,7 @@ uint8_t twelve_hr_format = TRUE;
 uint8_t alarm_on = FALSE;
 
 //variable defines what duty cycle to run the volume at. Do not go above 60
-uint8_t vol_duty_cycle = 10;
-uint16_t vol_comp_val = 3278;
+uint16_t vol_duty_cycle = 10;
 
 uint8_t alarm_msg[16] = {'A', 'L', 'A', 'R', 'M', ' ',  ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '};
 
@@ -797,9 +797,13 @@ TCCR3A |= (1 << COM3B1) | (1 << WGM30) |  (1 << WGM31); //fast PWM mode, non-inv
 TCCR3B |= (1 << WGM32) | (1 << WGM33) | (1 << CS30); //fast PWM and clk/1  (488hz)  
 //TCCR3C = 0X00;          //no forced compare
 OCR3A = 0x8000;          //define TOP of counter
+<<<<<<< HEAD
 OCR3B = 0x2AAA; //define the volume dc in the compare register
 //ETIMSK = (1 << TOIE3);   //enable interrupt on overflow and compare,
 OCR3B = vol_comp_val; //define the volume dc in the compare register
+=======
+OCR3B = VOL_COMPARE; //define the volume dc in the compare register
+>>>>>>> parent of 6c4ecf6... Next update
 ETIMSK = (1 << TOIE3);   //enable interrupt on overflow and compare,
                          //check buttons and get new duty cycle, 
 
