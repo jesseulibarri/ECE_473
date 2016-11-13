@@ -257,7 +257,7 @@ void step_time() {
 
 
     //check if alarm should go off
-    if(alarm_on == TRUE) {
+    if(alarm_on) {
 
         //toggle the clk to produce a beep
         if(alarm_going_off) {
@@ -369,12 +369,14 @@ void get_button_input() {
             
             if(alarm_going_off) {
                 //snooze function
-                if(chk_buttons(0)) {
+                if(chk_buttons(3)) {
+                    TCCR1B &= ~(1 << CS10);
                     alarm_going_off = FALSE;
                     alarm_sec = sec + 10;
                 }
                 //turn alarm off
-                if(chk_buttons(1)) {
+                if(chk_buttons(2)) {
+                    TCCR1B &= ~(1 << CS10);
                     alarm_going_off = FALSE;
                     alarm_on = FALSE;
                     send_lcd(0x00, 0x08);
@@ -395,7 +397,6 @@ void get_button_input() {
                 case FALSE:
                     if(chk_buttons(6))
                         current_mode = NORMAL;
-                        //TCCR0 |= (1 << CS02) | (1 << CS00); //turn clock back on
                     break;
             }
 
@@ -734,9 +735,9 @@ void mode_handler() {
 //
 ISR(TIMER0_OVF_vect) {
     
-    PORTC &= ~(1 << 0);
+    //PORTC &= ~(1 << 0);
     step_time();
-    PORTC |= (1 << 0);
+    //PORTC |= (1 << 0);
 
 }//Timer0 overflow ISR
 
@@ -819,8 +820,8 @@ TIMSK |= (1 << OCIE1B); // enable interrupt when timer resets
 TCCR3A |= (1 << COM3B1) | (1 << WGM30) |  (1 << WGM31); //fast PWM mode, non-inverting
 TCCR3B |= (1 << WGM32) | (1 << WGM33) | (1 << CS30); //fast PWM and clk/1 (488Hz)  
 //TCCR3C = 0X00;         //no forced compare
-OCR3A = 0x8000;          //define TOP of counter
-OCR3B = 0x4000;          //define the volume dc in the compare register
+OCR3A = 0x4000;          //define TOP of counter
+OCR3B = 0x2000;          //define the volume dc in the compare register
 ETIMSK = (1 << TOIE3);   //enable interrupt on overflow and compare,
                          //check buttons and get new duty cycle, 
 
