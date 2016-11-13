@@ -91,11 +91,13 @@ int8_t min = 5;
 uint8_t sec = 0;
 int8_t alarm_hrs = 1;
 int8_t alarm_min = 0;
+int8_t alarm_sec = 0;
 uint8_t alarm_AM = FALSE;
 uint8_t Colon_Status = FALSE;
 uint8_t AM = FALSE;
 uint8_t twelve_hr_format = TRUE;
 uint8_t alarm_on = FALSE;
+uint8_t alarm_going_off = FALSE;
 
 //variable defines what duty cycle to run the volume at. Do not go above 60
 uint16_t vol_duty_cycle = 10;
@@ -253,6 +255,18 @@ void step_time() {
 
     clk_boundary();
 
+
+    //check if alarm should go off
+    if(alarm_on == TRUE) {
+
+        //toggle the clk to produce a beep
+        if(alarm_going_off) {
+            TCCR1B ^= (1 << CS10);
+        }
+        else if((hrs == alarm_hrs) && (min == alarm_min) && (sec == alarm_sec) && (AM == alarm_AM))
+            alarm_going_off = TRUE;
+    }
+
 }//step_time
 
 
@@ -352,6 +366,20 @@ void get_button_input() {
                 if(chk_buttons(i))
                     current_mode &= ~(1 << i);
             }
+            
+            if(alarm_going_off) {
+                //snooze function
+                if(chk_buttons(0)) {
+                    alarm_going_off = FALSE;
+                    alarm_sec = sec + 10;
+                }
+                //turn alarm off
+                if(chk_buttons(1)) {
+                    alarm_going_off = FALSE;
+                    alarm_on = FALSE;
+                    send_lcd(0x00, 0x08);
+                }
+            }//if alarm_going_off
             break;
 
         case SET_CLK:
@@ -643,7 +671,7 @@ void mode_handler() {
 
 //********************************* NORMAL MODE **************************************
         case NORMAL:
-            //do not do anything
+            //Do not do anything
             break;
 
 //*************************** TOGGLE CLOCK FORMAT MODE *******************************
@@ -777,9 +805,9 @@ DDRC = 0x01;
 //DDRF = 0xFF; // make pin 0 GND, and pin 1 HIGH
 //PORTF = 0b0010;
 
-//setup timer counter 1 to run in CTC mode. 
+//setup timer counter 1 to run in Fast PWM mode. 
 TCCR1A |= (1 << WGM10) | (1 << WGM11); // fast PWM mode, OC pin disabled 
-TCCR1B |= (1 << WGM12) | (1 << WGM13) | (1<<CS10);     //use OCR1A as source for TOP, use clk/1
+TCCR1B |= (1 << WGM12) | (1 << WGM13) | (0 << CS10);     //use OCR1A as source for TOP, use clk/1
 TCCR1C = 0x00;          //no forced compare 
 OCR1A = 0x8000;         //clear at 0x8000. 16MHz/0x8000 = 488.28Hz = 0.002 Sec
 OCR1B = 0x2000;
@@ -789,7 +817,7 @@ TIMSK |= (1 << OCIE1B); // enable interrupt when timer resets
 //setup timer counter 3 as the interrupt source, 30 interrupts/sec
 // (16,000,000)/(32,768) = 488 cycles/sec
 TCCR3A |= (1 << COM3B1) | (1 << WGM30) |  (1 << WGM31); //fast PWM mode, non-inverting
-TCCR3B |= (1 << WGM32) | (1 << WGM33) | (1 << CS30); //fast PWM and clk/1  (488hz)  
+TCCR3B |= (1 << WGM32) | (1 << WGM33) | (1 << CS30); //fast PWM and clk/1 (488Hz)  
 //TCCR3C = 0X00;         //no forced compare
 OCR3A = 0x8000;          //define TOP of counter
 OCR3B = 0x4000;          //define the volume dc in the compare register
