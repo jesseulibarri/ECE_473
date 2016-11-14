@@ -20,8 +20,8 @@ char    lcd_string_array[16];  //holds a string to refresh the LCD
 uint8_t i;                     //general purpose index
 
 //delclare the 2 byte TWI read and write buffers (lm73_functions_skel.c)
-extern uint8_t lm73_wr_buf;
-extern uint8_t lm73_rd_buf;
+extern uint8_t lm73_wr_buf[2];
+extern uint8_t lm73_rd_buf[2];
 
 //********************************************************************
 //                            spi_init                               
@@ -49,16 +49,17 @@ init_twi();   //initalize TWI (twi_master.h)
 
 //set LM73 mode for reading temperature by loading pointer register
 //this is done outside of the normal interrupt mode of operation 
-lm73_wr_buf[0] |= 0b000;   //load lm73_wr_buf[0] with temperature pointer address
-twi_start_wr();   //start the TWI write process (twi_start_wr())
-sei();             //enable interrupts to allow start_wr to finish
+lm73_wr_buf[0] = 0x00;   //load lm73_wr_buf[0] with temperature pointer address
+twi_start_wr(0x90, );   //start the TWI write process (twi_start_wr())
+sei();             
+//enable interrupts to allow start_wr to finish
 
 clear_display();   //clean up the display
 
 while(1){          //main while loop
   _delay_ms(100);  //tenth second wait
   clear_display(); //wipe the display
-  ................ //read temperature data from LM73 (2 bytes)  (twi_start_rd())
+///////  twi_start_rd(); //read temperature data from LM73 (2 bytes)  (twi_start_rd())
   _delay_ms(2);    //wait for it to finish
 //now assemble the two bytes read back into one 16-bit value
   ................ //save high temperature byte into lm73_temp
