@@ -116,11 +116,16 @@ uint8_t segment_codes[5] = {SEL_DIGIT_4, SEL_DIGIT_3, SEL_COLON, SEL_DIGIT_2, SE
 //look up table to determine what direction the encoders are turning
 int8_t enc_lookup[16] = {0,0,0,0,0,0,0,1,0,0,0,-1,0,0,0,0};
 
-//******************************************************************************
-//                            Clock_Init
-//
-// External clock runs at 32kHz.
-// Elapsed time = 32,768Hz / (256 * 128) = 1 sec
+/******************************************************************************
+* Function: real_clk_init
+* Parameters: none
+* Return: none
+* Description: This function initializes timer 0 to track real time. The
+*   timer uses the 32kHz external clock. There are specific procedures
+*   found in the datasheet that initializes this oscillator.
+*   External clock runs at ~32kHz.
+*   Elapsed time = 32,768Hz / (256 * 128) = 1 sec
+*******************************************************************************/
 
 void real_clk_init() {
     
@@ -156,14 +161,15 @@ uint8_t chk_buttons(uint8_t button) {
 
 }//chk_buttons
 
-                                                 
-//******************************************************************************
 
-//***********************************************************************************
-//                             format_clk_array
-//takes a 16-bit binary input value and places the appropriate equivalent 4 digit 
-//BCD segment code in the array segment_data for display.                       
-//array is loaded at exit as:  |digit3|digit2|colon|digit1|digit0|
+/***********************************************************************************
+* Function: format_clk_array
+* Parameters: hours holds current hour, minutes holds current minutes.
+* Return: none
+* Description: Takes a 16-bit binary input value and places the appropriate 
+*   equivalent 4 digit BCD segment code in the array segment_data for display. 
+*   Array is loaded at exit as:  |digit3|digit2|colon|digit1|digit0|
+*******************************************************************************/
 
 void format_clk_array(uint8_t hours, uint8_t minutes) {
 
@@ -200,13 +206,15 @@ void format_clk_array(uint8_t hours, uint8_t minutes) {
             break;
     }//switch
 }//segment_sum
-//***********************************************************************************
 
-//***********************************************************************************
-//                                   Set Boundaries
-//
-// This function bounds the current count to within the max limit. It then calls the 
-// segsum function which will format our value into the segment data array.
+/******************************************************************************
+* Function: clk_boundary
+* Parameter: none
+* Return: none
+* Description: This function bounds the current count to within the max limit. 
+*   It then calls the segsum function which will format our value into the 
+*   segment data array.
+*******************************************************************************/
 
 void clk_boundary() {
 
@@ -243,9 +251,13 @@ void clk_boundary() {
         }//switch
 }//clk_boundary
 
-//***********************************************************************************
-//                                   Step Time Forward
-//
+/***********************************************************************************
+* Function: step_time
+* Parameters: none
+* Return: none
+* Description:
+*
+*******************************************************************************/
 
 void step_time() {
 
@@ -270,9 +282,13 @@ void step_time() {
 }//step_time
 
 
-//***********************************************************************************
-//                                   Change Format
-//
+/***********************************************************************************
+* Functions: twelve_to_twfour, twfour_to_twelve
+* Parameters: none
+* Return:
+* Description:
+*
+*******************************************************************************/
 
 void twelve_to_twfour() {
     if(!AM)
@@ -286,14 +302,17 @@ void twfour_to_twelve() {
     }
 }//twfour_to_twelve
 
-//******************************************************************************
 
-//***********************************************************************************
-//                                   SPI send information
-// Function will take in a message to send through SPI. It will write the data to the
-// SPI data register and then wait for the message to send before returning.
-//
-// NOT IN USE
+/******************************************************************************
+* Function: SPI_send
+* Parameters: message var holds int to be sent
+* Return: none
+* Description: Function will take in a message to send through SPI. It will 
+*   write the data to the SPI data register and then wait for the message to 
+*   send before returning.
+*
+* NOT IN USE
+*******************************************************************************/
 
 void SPI_send(uint8_t message) {
     SPDR = message; // write message to SPI data register
@@ -305,17 +324,17 @@ void SPI_send(uint8_t message) {
 }//SPI_send
 
 
-
-//******************************************************************************
-
-//***********************************************************************************
-//                                   SPI read information
-// Function will read any data coming through the SPI communication bus. It will write 
-// a garbage value to the SPI data register to initialize communication and then wait
-// for the data to be sent. At this time, any incoming data has entered the SPI data
-// register. The function now returns the read data.
-//
-// NOT IN USE
+/***********************************************************************************
+* Function: SPI_read
+* Parameters: none
+* Return: 8 bit int from SPI peripherial
+* Description: Function will read any data coming through the SPI communication bus.
+*   It will write a garbage value to the SPI data register to initialize 
+*   communication and then wait for the data to be sent. At this time, any incoming 
+*   data has entered the SPI data register. The function now returns the read data.
+*
+* NOT IN USE
+*******************************************************************************/
 
 uint8_t SPI_read() {
 
@@ -334,14 +353,14 @@ uint8_t SPI_read() {
 
 }//SPI_read
 
-//******************************************************************************
 
-//***********************************************************************************
-//                                   get_button_input
-//
-// Function will get any input from the button board and load the information
-// into the segment_data array.
-
+/***********************************************************************************
+* Function: get_button_input
+* Parameters: none
+* Return: none
+* Description: Function will get any input from the button board and load the
+*   information into the segment_data array.
+*******************************************************************************/
 
 void get_button_input() {
     // define index integer 
@@ -454,15 +473,14 @@ void get_button_input() {
 }//get_button_input
 
 
-//******************************************************************************
-
-//***********************************************************************************
-//                                   update_LEDs
-//
-// Function will send the data in the segment data array to the 7-segment board and 
-// then wait 0.5 ms on each value to allow the LED to be on long enough to produce 
-// a bright output.
-//
+/***********************************************************************************
+* Function: update_LEDs
+* Parameters: none
+* Return: none
+* Description: Function will send the data in the segment data array to the 
+*   7-segment board and then wait 0.5 ms on each value to allow the LED to be 
+*   on long enough to produce a bright output.
+*******************************************************************************/
 
 void update_LEDs() {
     // define loop index
@@ -494,19 +512,14 @@ void update_LEDs() {
 }//update_LEDs
 
 
-//******************************************************************************
-
-
-
-//******************************************************************************
-
-//***********************************************************************************
-//                                   Encoder 1
-// 
-// Function will receive the raw data brought in from the encoder board, interperate
-// the data, and add the correct value to the sum variable based on the recieved 
-// encoder status and current mode.
-//
+/***********************************************************************************
+* Function: encoder1_instructions
+* Parameters: encoder1_val is the binary value coming from encoder 1
+* Return: none
+* Description: Function will receive the raw data brought in from the encoder 
+*   board, interperate the data, and add the correct value to the sum variable 
+*   based on the recieved encoder status and current mode.
+*******************************************************************************/
 
 void encoder1_instruction(uint8_t encoder1_val) {
 
@@ -551,14 +564,13 @@ void encoder1_instruction(uint8_t encoder1_val) {
 }//get_encoder1
 
 
-//******************************************************************************
-
-//***********************************************************************************
-//                                   Encoder 2
-// 
-// This function is the same as the encoder1 function except that it will interperate
-// the data coming from encoder 2.
-//
+/***********************************************************************************
+* Function: encoder2_instruction
+* Parameters: encoder2_val is the binary value coming from encoder 2
+* Return: none
+* Description: This function is the same as the encoder1 function except that
+*   it will interperate the data coming from encoder 2.
+*******************************************************************************/
 
 void encoder2_instruction(uint8_t encoder2_val) {
 
@@ -624,15 +636,14 @@ void encoder2_instruction(uint8_t encoder2_val) {
 }//encoder2
 
 
-//******************************************************************************
-
-//***********************************************************************************
-//                                   SPI Total Functionallity
-//
-// Function will send the current mode data to the graph board and receive data from
-// the encoder at the same time. It will then call the encoders 1 and 2 functions 
-// to interperate the encoder data.
-//
+/***********************************************************************************
+* Function: SPI_function
+* Parameters: none
+* Return: none
+* Description: Function will send the current mode data to the graph board and 
+*   receive data from the encoder at the same time. It will then call the encoders 
+*   1 and 2 functions to interperate the encoder data.
+*******************************************************************************/
 
 void SPI_function() {
     uint8_t data;
@@ -659,12 +670,14 @@ void SPI_function() {
 }//SPI_function
 
 
-//******************************************************************************
-
-
-//***********************************************************************************
-//                                   mode_handler
-//
+/***********************************************************************************
+* Function: mode_handler
+* Parameters: none
+* Return: none
+* Description: Mode handler will determine what functions to execute on each
+*   interrupt depending on the mode of the machine. Possible modes are: NORMAL,
+*   TOGGLE_CLK_FORMAT, SET_CLK, or SET_ALARM. 
+*******************************************************************************/
 void mode_handler() {
 
     switch(current_mode)
@@ -730,9 +743,11 @@ void mode_handler() {
 
 
 
-//***********************************************************************************
-//                                   Interrupt Routine
-//
+/***********************************************************************************
+*                                   Interrupt Routine
+*
+*******************************************************************************/
+
 ISR(TIMER0_OVF_vect) {
     
     //PORTC &= ~(1 << 0);
