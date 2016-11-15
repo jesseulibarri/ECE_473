@@ -1,5 +1,3 @@
-
-
 /**********************************************************************
  * Copywrite: NONE
  * Original Author(s): Jesse Ulibarri
@@ -13,31 +11,33 @@
  *  on the  LED graph board.
  *********************************************************************/
 
-//Class: ECE 473
-//Assignment: Lab3
-
-//  HARDWARE SETUP:
-//  PORTA is connected to the segments of the LED display. and to the pushbuttons.
-//  PORTA.0 corresponds to segment a, PORTA.1 corresponds to segement b, etc.
-//
-//             ***** LED_GRAPH_BOARD *****
-//  PORTB bit 0 (SS_n) goes to REGLCK on graph board
-//  PORTB bit 1 (SCLK) goes to SRCLK on graph board
-//  PORTB bit 2 (MOSI) goes to SDIN on graph board
-//      OE_N goes to ground on AVR
-//      GND goes to ground on AVR
-//      VDD goes to VCC on AVR
-//      SD_OUT is not connected
-//
-//             ***** ENCODER_BOARD *****
-//  PORTB bit 1 (SCLK) goes to SCK on encoder board
-//  PORTB bit 3 (MISO) goes to SER_OUT on encoder board
-//  PORTE bit 0 goes to SH/LD on encoder board
-//  PORTE bit 1 goes to CLK_INH on encoder board
-// 
-//             ***** BUTTON_BOARD *****
-//  PORTB bits 4-6 go to a,b,c inputs of the 74HC138.
-//  PORTB bit 7 goes to the PWM transistor base.
+/**********************************************************************
+* Class: ECE 473
+* Assignment: Lab3
+*
+*  HARDWARE SETUP:
+*  PORTA is connected to the segments of the LED display. and to the pushbuttons.
+*  PORTA.0 corresponds to segment a, PORTA.1 corresponds to segement b, etc.
+*  
+*             ***** LED_GRAPH_BOARD *****
+*  PORTB bit 0 (SS_n) goes to REGLCK on graph board
+*  PORTB bit 1 (SCLK) goes to SRCLK on graph board
+*  PORTB bit 2 (MOSI) goes to SDIN on graph board
+*      OE_N goes to ground on AVR
+*      GND goes to ground on AVR
+*      VDD goes to VCC on AVR
+*      SD_OUT is not connected
+*
+*             ***** ENCODER_BOARD *****
+*  PORTB bit 1 (SCLK) goes to SCK on encoder board
+*  PORTB bit 3 (MISO) goes to SER_OUT on encoder board
+*  PORTE bit 0 goes to SH/LD on encoder board
+*  PORTE bit 1 goes to CLK_INH on encoder board
+* 
+*             ***** BUTTON_BOARD *****
+*  PORTB bits 4-6 go to a,b,c inputs of the 74HC138.
+*  PORTB bit 7 goes to the PWM transistor base.
+*********************************************************************/
 
 #define F_CPU 16000000 // cpu speed in hertz 
 #define TRUE 1
@@ -74,8 +74,6 @@
                                 // need to be set to get a low output on Y7.
 #define DISABLE_TRISTATE 0x60
 
-#define MAX_NUM 1023
-
 // Define different modes
 #define NORMAL              0xFF
 #define TOGGLE_CLK_FORMAT   0x7F
@@ -84,17 +82,19 @@
 
 #define VOL_COMPARE vol_duty_cycle / 100 * 0x8000
 
-//volatile int16_t summed_value = 0;
 uint8_t current_mode = NORMAL;
-int8_t hrs = 10;
-int8_t min = 5;
+
+int8_t hrs = 12;
+int8_t min = 0;
 uint8_t sec = 0;
-int8_t alarm_hrs = 1;
+uint8_t AM = TRUE;
+
+int8_t alarm_hrs = 12;
 int8_t alarm_min = 0;
 int8_t alarm_sec = 0;
-uint8_t alarm_AM = FALSE;
+uint8_t alarm_AM = TRUE;
+
 uint8_t Colon_Status = FALSE;
-uint8_t AM = FALSE;
 uint8_t twelve_hr_format = TRUE;
 uint8_t alarm_on = FALSE;
 uint8_t alarm_going_off = FALSE;
@@ -285,9 +285,9 @@ void step_time() {
 /***********************************************************************************
 * Functions: twelve_to_twfour, twfour_to_twelve
 * Parameters: none
-* Return:
-* Description:
-*
+* Return: none
+* Description: Converts the clock from twelve hour time to military time
+*   or vise versa.
 *******************************************************************************/
 
 void twelve_to_twfour() {
@@ -310,8 +310,6 @@ void twfour_to_twelve() {
 * Description: Function will take in a message to send through SPI. It will 
 *   write the data to the SPI data register and then wait for the message to 
 *   send before returning.
-*
-* NOT IN USE
 *******************************************************************************/
 
 void SPI_send(uint8_t message) {
@@ -410,59 +408,37 @@ void get_button_input() {
                 case TRUE:
                     if(chk_buttons(7))
                         AM ^= TRUE;
-                    if(chk_buttons(6))
-                        current_mode = NORMAL;
                     break;
                 case FALSE:
-                    if(chk_buttons(6))
-                        current_mode = NORMAL;
                     break;
+            }
+            
+            // exit SET_CLK mode
+            if(chk_buttons(6)) {
+                current_mode = NORMAL;
+                TCCR0 |= (1 << CS02) | (1 << CS00); //turn clock back on
             }
 
             break;
 
-
         case SET_ALARM:
-
-            /*switch(twelve_hr_format)
+            
+            switch(twelve_hr_format)
             {
                 case TRUE:
-                    if( chk_buttons(0))
-                        AM ^= TRUE;
-                    if(chk_buttons(2)) 
-                        current_mode = NORMAL;
-                    if(ckh_buttons(7)
-                        alarm_on ^= TRUE;
+                    if(chk_buttons(7))
+                        alarm_AM ^= TRUE;
                     break;
                 case FALSE:
-                    if(chk_buttons(2))
-                        current_mode = NORMAL;
                     break;
             }
-            break; */
-            if(twelve_hr_format && chk_buttons(0))
-    //       {
-    //            case TRUE:
-    //                if( chk_buttons(0))
-    //                    AM ^= TRUE;
-    //                if(chk_buttons(2)) 
-    //                    current_mode = NORMAL;
-    //                if(ckh_buttons(7)
-    //                    alarm_on ^= TRUE;
-    //                break;
-    //            case FALSE:
-    //                if(chk_buttons(2))
-    //                    current_mode = NORMAL;
-    //                break;
-    //        }
-
-    //        break;
-            if(twelve_hr_format && chk_buttons(6))
-                alarm_AM ^= TRUE;
-            if(chk_buttons(5))
-                current_mode = NORMAL;
             if(chk_buttons(0))
                 alarm_on ^= TRUE;
+            // exit SET_ALARM mode
+            if(chk_buttons(5)) {
+                current_mode = NORMAL;
+            }
+
             break;
             
     }//switch
@@ -488,24 +464,20 @@ void update_LEDs() {
 
     // make port A an output
     DDRA = 0xFF;
-    //TCCR2 |= (1 << COM20) | (1 << COM21); 
     // make sure that port has changed direction 
     __asm__ __volatile__ ("nop");
     __asm__ __volatile__ ("nop");
 
     // loop and update each LED number
     for(num_digits = 0; num_digits < 5; num_digits++) {
-        // send PORTB the digit to desplay
-        PORTB = segment_codes[num_digits];
 
-        // send 7 segment code to LED segments
-        PORTA = segment_data[num_digits];
+        PORTB = segment_codes[num_digits]; // send PORTB the digit to desplay
+        PORTA = segment_data[num_digits];  // send 7 segment code to LED segments
 
         // wait a moment
         _delay_ms(0.5);
-    }
+    }//for
     PORTA = OFF; // turn off port to keep each segment on the same amount of time
-    //TCCR2 &= ~((1 << COM20) | (1 << COM21));
     __asm__ __volatile__ ("nop");
     __asm__ __volatile__ ("nop");
 
@@ -683,12 +655,14 @@ void mode_handler() {
     switch(current_mode)
     {
 
-//********************************* NORMAL MODE **************************************
+/********************************* NORMAL MODE **************************************
+************************************************************************************/
         case NORMAL:
             //Do not do anything
             break;
 
-//*************************** TOGGLE CLOCK FORMAT MODE *******************************
+/*************************** TOGGLE CLOCK FORMAT MODE *******************************
+************************************************************************************/
         case TOGGLE_CLK_FORMAT:
             twelve_hr_format ^= TRUE; //if change format button is pushed, toggle
             
@@ -706,7 +680,8 @@ void mode_handler() {
 
             break;
 
-//***************************** SET CLOCK MODE *************************************
+/***************************** SET CLOCK MODE *************************************
+************************************************************************************/
         case SET_CLK:
 
             TCCR0 = (0 << CS00) | (0 << CS01) | (0 << CS02); //disable real clock
@@ -721,7 +696,8 @@ void mode_handler() {
             TCCR0 |= (1 << CS02) | (1 << CS00); //turn clock back on
             break;
 
-//***************************** SET ALARM MODE *************************************
+/***************************** SET ALARM MODE *************************************
+************************************************************************************/
         case SET_ALARM:
             
             format_clk_array(alarm_hrs, alarm_min);
@@ -742,128 +718,151 @@ void mode_handler() {
 }//mode_handler
 
 
+/***********************************************************************************
+************************************************************************************
+*                                   Interrupt Routines                             *
+************************************************************************************
+***********************************************************************************/
+
 
 /***********************************************************************************
-*                                   Interrupt Routine
-*
-*******************************************************************************/
-
+* Description: Interrupts every second to track real time.
+***********************************************************************************/
 ISR(TIMER0_OVF_vect) {
     
-    //PORTC &= ~(1 << 0);
     step_time();
-    //PORTC |= (1 << 0);
 
 }//Timer0 overflow ISR
 
+
+/***********************************************************************************
+* Description: Interrupt drives the alarm tone.
+*  PWM into input of OPAMP.
+***********************************************************************************/
+
+ISR(TIMER1_COMPB_vect) {
+
+    PORTC ^= (1 << 0);
+
+}//Timer1 compare B ISR
+
+
+/***********************************************************************************
+* Description: Interrupt drives the alarm tone.
+*  PWM into input of OPAMP.
+***********************************************************************************/
 ISR(TIMER3_OVF_vect) {
 
-    //PORTC &= ~(1 << 4);
-    // Start ADC conversion
+    // Start ADC conversion (get light input)
     ADCSRA |= (1 << ADSC);
 
-    PORTC &= ~(1 << 4);
     uint8_t old_DDRA = DDRA;
     uint8_t old_PORTA = PORTA;
     uint8_t old_PORTB = PORTB;
 
-    get_button_input();
-    mode_handler();
-    SPI_send(~current_mode);
+    get_button_input();         //any user input to change mode?
+    mode_handler();             //call correct functions depending on mode
+    SPI_send(~current_mode);    //send mode to the bar graph
 
     DDRA = old_DDRA;
     PORTA = old_PORTA;
     PORTB = old_PORTB;
 
-   // PORTC |= (1 << 4);
-
 }//Timer2 overflow ISR
 
 
-ISR(TIMER2_COMP_vect) {
-    PORTC &= ~(1 << 3);
-    PORTF ^= (1 << 0);
-    PORTC |= (1 << 3);
+/***********************************************************************************
+* Description: Interrupt drives the alarm tone.
+*  PWM into input of OPAMP.
+***********************************************************************************/
+/*ISR(TIMER2_COMP_vect) {
+
+    PORTF ^= (1 << 0);          I DONT THINK THIS IS ACTIVE
+
 }//Timer3 overflow ISR
+*/
 
 
-ISR(TIMER1_COMPB_vect) {
-    PORTC ^= (1 << 0);
-}
+
+/***********************************************************************************
+* Description: Interrupt occurs when an ADC conversion is complete.
+*   On each interrupt, the brightness of the LED display is updated.
+***********************************************************************************/
 
 ISR(ADC_vect) {
+
     OCR2 = ADCH;
-}
+
+}//ADC converter ISR
 
 
-//***********************************************************************************
-//***********************************************************************************
-//                                   MAIN
+/***********************************************************************************
+************************************************************************************
+*                                   MAIN                                           *
+************************************************************************************
+***********************************************************************************/
 
 int main()
 {
 
 // set port bits 4-7 B as outputs
-// set port bits 0-3 B as outputs (output mode for SS, MOSI, SCLK)
+// set port bits 0-2 B as outputs (output mode for SS, MOSI, SCLK)
+// set port bit 3 as input (MISO) with pull-ups
 DDRB = 0xF7;
-PINB = 0b1000;
+PINB = (1 << PB3);
+//Alarm tone is generated on PC0
+DDRC = 0x01;
+// encoder is on PE0 and PE1
+// volume is tied to OC3A on PE3
+DDRE = (1 << PE0) | (1 << PE1) | (1 << PE4);
 
 // initialize the real time clock and initial clock display
 real_clk_init();
 format_clk_array(hrs, min);
 
-
-// encoder is on PORTE
-// volume is tied to OC3A on PE3
-DDRE = 0xFF;
-//Alarm tone is generated on PC0
-DDRC = 0x01;
-//DDRF = 0xFF; // make pin 0 GND, and pin 1 HIGH
-//PORTF = 0b0010;
-
-//setup timer counter 1 to run in Fast PWM mode. 
-TCCR1A |= (1 << WGM10) | (1 << WGM11); // fast PWM mode, OC pin disabled 
-TCCR1B |= (1 << WGM12) | (1 << WGM13) | (0 << CS10);     //use OCR1A as source for TOP, use clk/1
+//setup timer counter 1 to run in Fast PWM mode. Timer generates the alarm tone 
+TCCR1A |= (1 << WGM10) | (1 << WGM11);               //fast PWM mode, OC pin disabled 
+TCCR1B |= (1 << WGM12) | (1 << WGM13) | (0 << CS10); //use OCR1A as source for TOP, use clk/1
 TCCR1C = 0x00;          //no forced compare 
-OCR1A = 0x8000;         //clear at 0x8000. 16MHz/0x8000 = 488.28Hz = 0.002 Sec
-OCR1B = 0x2000;
+OCR1A = 0x5000;         //clear at 0x8000. 16MHz/0x8000 = 488.28Hz = 0.002 Sec
+OCR1B = 0x2000;         //create DC of tone
 TIMSK |= (1 << OCIE1B); // enable interrupt when timer resets
 
-
-//setup timer counter 3 as the interrupt source, 30 interrupts/sec
-// (16,000,000)/(32,768) = 488 cycles/sec
-TCCR3A |= (1 << COM3B1) | (1 << WGM30) |  (1 << WGM31); //fast PWM mode, non-inverting
-TCCR3B |= (1 << WGM32) | (1 << WGM33) | (1 << CS30); //fast PWM and clk/1 (488Hz)  
-//TCCR3C = 0X00;         //no forced compare
-OCR3A = 0x4000;          //define TOP of counter
-OCR3B = 0x2000;          //define the volume dc in the compare register
-ETIMSK = (1 << TOIE3);   //enable interrupt on overflow and compare,
-                         //check buttons and get new duty cycle, 
 
 // set up timer and interrupt (16Mhz / 256 = 62,500Hz = 16uS)
 // OC2 will pulse PB7 which is what the LED board PWM pin is connected to
 TCCR2 |= (1 << WGM21) | (1 << WGM20) | (1 << COM20) \
          | (1 << COM21) | (1 << CS21); // set timer mode (PWM, no prescalar, inverting)
 OCR2 = 0xF9;
-//TIMSK |= (1 << OCIE2); // turn on timer interrupts
 
-// set up ADC
+// timer 3 controls frequency of checking buttons as well as volume control
+// (16,000,000)/(16,384) = 976 cycles/sec = 1.024mS
+TCCR3A |= (1 << COM3B1) | (1 << WGM30) |  (1 << WGM31); //fast PWM mode, non-inverting
+TCCR3B |= (1 << WGM32) | (1 << WGM33) | (1 << CS30); //fast PWM and clk/1 (976Hz)  
+//TCCR3C = 0X00;         //no forced compare
+OCR3A = 0x2000;          //define TOP of counter
+OCR3B = 0x1000;          //define the volume dc in the compare register
+ETIMSK = (1 << TOIE3);   //enable interrupt on overflow and compare,
+                         //check buttons and get new duty cycle, 
+
+// set up ADC (get light level)
 DDRF  &= ~(_BV(DDF7)); //make port F bit 7 is ADC input  
 PORTF &= ~(_BV(PF7));  //port F bit 7 pullups must be off
 ADMUX = (1 << ADLAR) | (1 << REFS0) | (1 << MUX0) | (1 << MUX1) \
         | (1 << MUX2); // set reference voltage to external 5V
 ADCSRA = (1 << ADEN) | (1 << ADIE) | (1 << ADPS0) \
         | (1 << ADPS1) | (1 << ADPS2); // enable ADC, enable interrupts, enable ADC0
-                                      // 128 prescaler (16,000,000/128 = 125,000)
+                                       // 128 prescaler (16,000,000/128 = 125,000)
 
 // set up SPI (master mode, clk low on idle, leading edge sample)
 SPCR = (1 << SPE) | (1 << MSTR) | (0 << CPOL) | (0 << CPHA);
 SPSR = (1 << SPI2X);
 
-lcd_init(); // initialize the lcd screen
-string2lcd(alarm_msg); // sent msg
-send_lcd(0x00, 0x08); // turn diplay off
-sei(); // enable global interrupts
+lcd_init();             // initialize the lcd screen
+string2lcd(alarm_msg);  // sent initial alarm msg
+send_lcd(0x00, 0x08);   // turn diplay off
+
+sei();                  // enable global interrupts
 
 while(1){
     switch(current_mode)
