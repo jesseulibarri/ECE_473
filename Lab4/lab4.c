@@ -772,19 +772,6 @@ ISR(TIMER3_OVF_vect) {
 
 
 /***********************************************************************************
-* Description: Interrupt drives the alarm tone.
-*  PWM into input of OPAMP.
-***********************************************************************************/
-/*ISR(TIMER2_COMP_vect) {
-
-    PORTF ^= (1 << 0);          I DONT THINK THIS IS ACTIVE
-
-}//Timer3 overflow ISR
-*/
-
-
-
-/***********************************************************************************
 * Description: Interrupt occurs when an ADC conversion is complete.
 *   On each interrupt, the brightness of the LED display is updated.
 ***********************************************************************************/
@@ -824,8 +811,8 @@ format_clk_array(hrs, min);
 TCCR1A |= (1 << WGM10) | (1 << WGM11);               //fast PWM mode, OC pin disabled 
 TCCR1B |= (1 << WGM12) | (1 << WGM13) | (0 << CS10); //use OCR1A as source for TOP, use clk/1
 TCCR1C = 0x00;          //no forced compare 
-OCR1A = 0x5000;         //clear at 0x8000. 16MHz/0x8000 = 488.28Hz = 0.002 Sec
-OCR1B = 0x2000;         //create DC of tone
+OCR1A = 0x8000;         //clear at 0x8000. 16MHz/0x8000 = 488.28Hz = 0.002 Sec
+OCR1B = 0x4000;         //create DC of tone
 TIMSK |= (1 << OCIE1B); // enable interrupt when timer resets
 
 
