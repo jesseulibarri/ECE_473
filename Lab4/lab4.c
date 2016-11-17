@@ -64,6 +64,17 @@
 #define COLON_ON   0xFC
 #define COLON_OFF  0xFF
 
+//For debugging
+#define SHOW_INTERRUPTS TRUE
+#define TCNT0_ISR       0x01
+#define TCNT1_ISR       0x02
+#define TCNT3_ISR       0x03
+#define ADC_ISR         0x04
+#define TWI_ISR         0x05
+#define USART0_ISR      0x06
+#define NOT_IN_ISR      0xF8
+
+//Select digit codes
 #define SEL_DIGIT_1 0x40 
 #define SEL_DIGIT_2 0x30
 #define SEL_DIGIT_3 0x10
@@ -729,8 +740,16 @@ void mode_handler() {
 * Description: Interrupts every second to track real time.
 ***********************************************************************************/
 ISR(TIMER0_OVF_vect) {
-    
+
+#ifdef SHOW_INTERRUPTS
+    PORTG |= TCNT0_ISR;
+#endif
+
     step_time();
+
+#ifdef SHOW_INTERRUPTS
+    PORTG &= NOT_IN_ISR;
+#endif
 
 }//Timer0 overflow ISR
 
@@ -742,7 +761,14 @@ ISR(TIMER0_OVF_vect) {
 
 ISR(TIMER1_COMPB_vect) {
 
+#ifdef SHOW_INTERRUPTS
+    PORTG |= TCNT1_ISR;
+#endif
     PORTC ^= (1 << 0);
+
+#ifdef SHOW_INTERRUPTS
+    PORTG &= NOT_IN_ISR;
+#endif
 
 }//Timer1 compare B ISR
 
@@ -752,6 +778,10 @@ ISR(TIMER1_COMPB_vect) {
 *  PWM into input of OPAMP.
 ***********************************************************************************/
 ISR(TIMER3_OVF_vect) {
+
+#ifdef SHOW_INTERRUPTS
+    PORTG |= TCNT3_ISR;
+#endif
 
     // Start ADC conversion (get light input)
     ADCSRA |= (1 << ADSC);
@@ -768,6 +798,10 @@ ISR(TIMER3_OVF_vect) {
     PORTA = old_PORTA;
     PORTB = old_PORTB;
 
+#ifdef SHOW_INTERRUPTS
+    PORTG &= NOT_IN_ISR;
+#endif
+
 }//Timer2 overflow ISR
 
 
@@ -778,7 +812,15 @@ ISR(TIMER3_OVF_vect) {
 
 ISR(ADC_vect) {
 
+#ifdef SHOW_INTERRUPTS
+    PORTG |= ADC_ISR;
+#endif
+
     OCR2 = ADCH;
+
+#ifdef SHOW_INTERRUPTS
+    PORTG &= NOT_IN_ISR;
+#endif
 
 }//ADC converter ISR
 
@@ -802,6 +844,8 @@ DDRC = 0x01;
 // encoder is on PE0 and PE1
 // volume is tied to OC3A on PE3
 DDRE = (1 << PE0) | (1 << PE1) | (1 << PE4);
+// For debugging
+DDRG |= (1 << PG0) | (1 << PG1) | (1 << PG2);
 
 // initialize the real time clock and initial clock display
 real_clk_init();

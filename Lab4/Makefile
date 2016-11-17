@@ -26,7 +26,7 @@ clean:
 #setup for for USB programmer
 #may need to be changed depending on your programmer
 program: $(PRG).hex
-	sudo avrdude -c usbasp -p m128 -e -U flash:w:$(PRG).hex  -v
+	avrdude -c usbasp -p m128 -e -U flash:w:$(PRG).hex  -v
 
 lst:  $(PRG).lst
 
