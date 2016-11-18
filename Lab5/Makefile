@@ -1,9 +1,9 @@
-PRG             =thermo3_skel
+PRG             =lab5
 
-OBJS            =thermo3_skel.o lcd_functions.o lm73_functions_skel.o twi_master.o 
+OBJS            =lab5.o lcd_functions.o lm73_functions_skel.o twi_master.o uart_functions.o
 
 
-SRCS            =thermo3_skel.c lcd_functions.c lm73_functions_skel.c twi_master.c 
+SRCS            =lab5.c lcd_functions.c lm73_functions_skel.c twi_master.c uart_functions.c 
 
 MCU_TARGET     = atmega128
 #MCU_TARGET     = atmega48
@@ -40,7 +40,7 @@ $(PRG).elf: $(OBJS)
 #"-" prevents erroring out with file not found
 .PHONY	: clean
 clean: 
-	-rm -rf $(PRG).o $(PRG).elf 
+	-rm -rf $(PRG).o $(PRG).elf *.d 
 	-rm -rf $(PRG).lst $(PRG).map 
 	-rm -rf $(PRG).srec $(PRG)*.bin $(PRG).hex 
 	-rm -rf $(PRG)_eeprom.srec $(PRG)_eeprom*.bin $(PRG)_eeprom.hex 

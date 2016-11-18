@@ -1,6 +1,7 @@
-PRG            =lab4
+PRG            =lab5
 
 OBJ            = $(PRG).o
+SRCS		   = lcd_functions.c lm73_functions_skel.c twi_master.c uart_functions.c
 
 MCU_TARGET     = atmega128
 OPTIMIZE       = -O2    # options are 1, 2, 3, s
@@ -32,6 +33,9 @@ lst:  $(PRG).lst
 
 %.lst: %.elf
 	$(OBJDUMP) -h -S $< > $@
+
+#include the dependencies from the other makefiles
+-include S(SRCS:.c=.d)
 
 # Rules for building the .text rom images
 
