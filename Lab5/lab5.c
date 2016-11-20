@@ -493,9 +493,7 @@ void get_button_input() {
 *******************************************************************************/
 /*
 void get_remote_temp() {
-
     uint16_t lm73_temp;
-
     twi_start_rd(LM73_ADDRESS, lm73_rd_buf, 2);
     _delay_ms(2);
     lm73_temp = lm73_rd_buf[0];
@@ -503,7 +501,6 @@ void get_remote_temp() {
     lm73_temp |= lm73_rd_buf[1];
     lm73_temp = lm73_temp >> 7;
     itoa(lm73_temp, lcd_line1, 10);
-
 }
 */
 

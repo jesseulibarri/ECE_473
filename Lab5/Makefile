@@ -3,7 +3,7 @@ PRG             =lab5
 OBJS            =lab5.o lcd_functions.o lm73_functions_skel.o twi_master.o uart_functions.o
 
 
-SRCS            =lab5.c lcd_functions.c lm73_functions_skel.c twi_master.c uart_functions.c 
+SRCS            =lab5.c lcd_functions.c lm73_functions_skel.c twi_master.c uart_functions.c
 
 MCU_TARGET     = atmega128
 #MCU_TARGET     = atmega48

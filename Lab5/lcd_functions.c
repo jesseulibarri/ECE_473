@@ -59,6 +59,7 @@ void fill_spaces(void){
 void char2lcd(char a_char){
 	//sends a char to the LCD
 	//usage: char2lcd('H');  // send an H to the LCD
+	while (!(SPSR & 0x80)) {}	// Wait for SPI transfer to complete
 	SPDR = 0x01;   //set SR for data xfer with LSB=1
 	while (!(SPSR & 0x80)) {}	// Wait for SPI transfer to complete
 	SPDR = a_char; //send the char to the SPI port
