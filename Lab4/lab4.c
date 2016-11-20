@@ -200,7 +200,7 @@ void format_clk_array(uint8_t hours, uint8_t minutes) {
         segment_data[0] &= ~(1 << 7);
 
     // Determine if it is AM or PM
-    else if(!AM && twelve_hr_format)
+    else if(current_mode != SET_ALARM && !AM && twelve_hr_format)
         segment_data[0] &= ~(1 << 7); //turn on last DP
 
     if(alarm_on)
