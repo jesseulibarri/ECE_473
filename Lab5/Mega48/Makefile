@@ -1,15 +1,14 @@
-PRG             =lab5
-#PRG				=uart_test
+PRG             =lab5_atmega48
 
-OBJS            =lab5.o hd44780.o lm73_functions_skel.o twi_master.o uart_functions.o
+OBJS            =lab5_atmega48.o twi_master.o mega48_uart_functions.o
 
 
-SRCS            =lab5.c hd44780.c lm73_functions_skel.c twi_master.c uart_functions.c
+SRCS            =lab5_atmega48.c twi_master.c mega48_uart_functions.c
 
-MCU_TARGET     = atmega128
-#MCU_TARGET     = atmega48
-PROGRAMMER_TARGET     = m128
-#PROGRAMMER_TARGET     = m48
+#MCU_TARGET     = atmega128
+MCU_TARGET     = atmega48
+#PROGRAMMER_TARGET     = m128
+PROGRAMMER_TARGET     = m48
 
 #agressive optimization
 OPTIMIZE       = -O2    # options are 1, 2, 3, s
@@ -17,7 +16,7 @@ OPTIMIZE       = -O2    # options are 1, 2, 3, s
 #OPTIMIZE       = -Os    # options are 1, 2, 3, s
 #OPTIMIZE       = -1s    # options are 1, 2, 3, s
 
-F_CPU          = 16000000UL
+F_CPU          = 8000000UL
 
 DEFS           =
 LIBS           =

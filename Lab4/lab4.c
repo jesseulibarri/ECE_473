@@ -13,7 +13,7 @@
 
 /**********************************************************************
 * Class: ECE 473
-* Assignment: Lab3
+* Assignment: Lab4
 *
 *  HARDWARE SETUP:
 *  PORTA is connected to the segments of the LED display. and to the pushbuttons.
@@ -91,7 +91,13 @@
 #define SET_CLK             0xBF
 #define SET_ALARM           0xDF
 
-#define VOL_COMPARE vol_duty_cycle / 100 * 0x8000
+// Declare init functions. They are at bottom out of the way
+void real_clk_init();
+void timer1_init();
+void timer2_init();
+void timer3_init();
+void SPI_init();
+void ADC_init();
 
 uint8_t current_mode = NORMAL;
 
@@ -110,10 +116,8 @@ uint8_t twelve_hr_format = TRUE;
 uint8_t alarm_on = FALSE;
 uint8_t alarm_going_off = FALSE;
 
-//variable defines what duty cycle to run the volume at. Do not go above 60
-uint16_t vol_duty_cycle = 10;
-
-uint8_t alarm_msg[16] = {'A', 'L', 'A', 'R', 'M', ' ',  ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '};
+char alarm_msg[32] = {'N', 'O', 'R', 'M', 'A', 'L',  ' ', 'M', 'O', 'D', 'E', ' ', ' ', ' ', ' ', ' ',\
+            ' ', ' ', ' ', ' ', ' ', ' ',  ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '};
 
 //holds data to be sent to the segments. logic zero turns segment on
 uint8_t segment_data[5];
@@ -126,30 +130,6 @@ uint8_t segment_codes[5] = {SEL_DIGIT_4, SEL_DIGIT_3, SEL_COLON, SEL_DIGIT_2, SE
 
 //look up table to determine what direction the encoders are turning
 int8_t enc_lookup[16] = {0,0,0,0,0,0,0,1,0,0,0,-1,0,0,0,0};
-
-/******************************************************************************
-* Function: real_clk_init
-* Parameters: none
-* Return: none
-* Description: This function initializes timer 0 to track real time. The
-*   timer uses the 32kHz external clock. There are specific procedures
-*   found in the datasheet that initializes this oscillator.
-*   External clock runs at ~32kHz.
-*   Elapsed time = 32,768Hz / (256 * 128) = 1 sec
-*******************************************************************************/
-
-void real_clk_init() {
-    
-    // Follow procedures in the datasheet to select the external clock.
-    TIMSK &= ~((1 << OCIE0) | (1 << TOIE0)); //clear interrupts
-    ASSR |= (1 << AS0);                     //enable external clock
-    TCCR0 = (0 << WGM01) | (0 << WGM00) | \
-            (1 << CS02) | (1 << CS00);      //normal mode, 128 prescale
-    while(!((ASSR & 0b0111) == 0)) {}       //spin till registers finish updating
-    TIFR |= (1 << OCF0) | (1 << TOV0);      //clear interrupt flags
-    TIMSK |= (1 << TOIE0);                  //enable overflow interrupt
-
-}//real_clk_intit
 
 
 /******************************************************************************
@@ -324,11 +304,15 @@ void twfour_to_twelve() {
 *******************************************************************************/
 
 void SPI_send(uint8_t message) {
+    PORTE &= ~(1 << PE5); // enable bar graph
+
     SPDR = message; // write message to SPI data register
     while(bit_is_clear(SPSR, SPIF)) {} // wait for data to send
 
-    PORTB |= 0x01;      // move data from shift to storage reg.
-    PORTB &= ~0x01;     // change 3-state back to high Z
+    PORTE |= (1 << PE6);      // move data from shift to storage reg.
+    PORTE &= ~(1 << PE6);     // change 3-state back to high Z
+
+    PORTE |= (1 << PE5); // disable bar graph
 
 }//SPI_send
 
@@ -407,7 +391,9 @@ void get_button_input() {
                     TCCR1B &= ~(1 << CS10);
                     alarm_going_off = FALSE;
                     alarm_on = FALSE;
-                    send_lcd(0x00, 0x08);
+                    memcpy(alarm_msg, "NORMAL MODE    ", 16);
+                    //send_lcd(0x00, 0x08);
+
                 }
             }//if alarm_going_off
             break;
@@ -443,8 +429,14 @@ void get_button_input() {
                 case FALSE:
                     break;
             }
-            if(chk_buttons(0))
+            if(chk_buttons(0)) {
                 alarm_on ^= TRUE;
+                    if(alarm_on)
+                        memcpy(alarm_msg, "ALARM ARMED     ", 16);
+                    else
+                        memcpy(alarm_msg, "NORMAL MODE     ", 16);
+            
+            }
             // exit SET_ALARM mode
             if(chk_buttons(5)) {
                 current_mode = NORMAL;
@@ -456,6 +448,7 @@ void get_button_input() {
 
     // disable the tristate buffer
     PORTB = DISABLE_TRISTATE;
+//    DDRA = 0xFF; //set PORTA back to output
 
 }//get_button_input
 
@@ -630,21 +623,24 @@ void encoder2_instruction(uint8_t encoder2_val) {
 
 void SPI_function() {
     uint8_t data;
-    
+
     //************ Encoder Portion *******************
-    PORTE = 0x00; //shift encoder data into register
+    PORTE &= ~(1 << PE5); // enable bar graph
+    PORTE &= ~(1 << PE0); //shift encoder data into register
     __asm__ __volatile__ ("nop");
     __asm__ __volatile__ ("nop");
-    PORTE = 0x01; //end shift
+    PORTE |= (1 << PE0); //end shift
 
     //*********** Send and Receive SPI Data **********
     SPDR = (~current_mode); // send the bar graph the current status
     while(bit_is_clear(SPSR, SPIF)) {} // wait until encoder data is recieved
     data = SPDR;
-
+    
     //********** Bar Graph Portion *******************
-    PORTB |= 0x01;      // move graph data from shift to storage reg.
-    PORTB &= ~0x01;     // change 3-state back to high Z
+    PORTE |= (1 << PE6);      // move graph data from shift to storage reg.
+    PORTE &= ~(1 << PE6);     // change 3-state back to high Z
+    PORTE |= (1 << PE5);      // disable bar graph
+
 
     //********** Pass Encoder Info to Functions ******
     encoder1_instruction(data);
@@ -716,11 +712,11 @@ void mode_handler() {
 
             SPI_function();
 
-            if(alarm_on)
-                send_lcd(0x00, 0x0C);
-            else
-                send_lcd(0x00, 0x08);
-
+            //if(alarm_on)
+            //    send_lcd(0x00, 0x0C);
+            //else
+            //    send_lcd(0x00, 0x08);
+            
             break;
         default:
             break;
@@ -741,15 +737,11 @@ void mode_handler() {
 ***********************************************************************************/
 ISR(TIMER0_OVF_vect) {
 
-#ifdef SHOW_INTERRUPTS
-    PORTG |= TCNT0_ISR;
-#endif
+    PORTC |= (1 << PC5);
 
     step_time();
 
-#ifdef SHOW_INTERRUPTS
-    PORTG &= NOT_IN_ISR;
-#endif
+    PORTC &= ~(1 << PC5);
 
 }//Timer0 overflow ISR
 
@@ -761,14 +753,7 @@ ISR(TIMER0_OVF_vect) {
 
 ISR(TIMER1_COMPB_vect) {
 
-#ifdef SHOW_INTERRUPTS
-    PORTG |= TCNT1_ISR;
-#endif
     PORTC ^= (1 << 0);
-
-#ifdef SHOW_INTERRUPTS
-    PORTG &= NOT_IN_ISR;
-#endif
 
 }//Timer1 compare B ISR
 
@@ -777,15 +762,13 @@ ISR(TIMER1_COMPB_vect) {
 * Description: Interrupt drives the alarm tone.
 *  PWM into input of OPAMP.
 ***********************************************************************************/
-ISR(TIMER3_OVF_vect) {
+ISR(TIMER2_OVF_vect) {
 
-#ifdef SHOW_INTERRUPTS
-    PORTG |= TCNT3_ISR;
-#endif
+    PORTC |= (1 << PC4);
 
     // Start ADC conversion (get light input)
     ADCSRA |= (1 << ADSC);
-
+    
     uint8_t old_DDRA = DDRA;
     uint8_t old_PORTA = PORTA;
     uint8_t old_PORTB = PORTB;
@@ -798,9 +781,9 @@ ISR(TIMER3_OVF_vect) {
     PORTA = old_PORTA;
     PORTB = old_PORTB;
 
-#ifdef SHOW_INTERRUPTS
-    PORTG &= NOT_IN_ISR;
-#endif
+    refresh_lcd(alarm_msg);
+
+    PORTC &= ~(1 << PC4);
 
 }//Timer2 overflow ISR
 
@@ -812,15 +795,7 @@ ISR(TIMER3_OVF_vect) {
 
 ISR(ADC_vect) {
 
-#ifdef SHOW_INTERRUPTS
-    PORTG |= ADC_ISR;
-#endif
-
     OCR2 = ADCH;
-
-#ifdef SHOW_INTERRUPTS
-    PORTG &= NOT_IN_ISR;
-#endif
 
 }//ADC converter ISR
 
@@ -839,59 +814,28 @@ int main()
 // set port bit 3 as input (MISO) with pull-ups
 DDRB = 0xF7;
 PINB = (1 << PB3);
-//Alarm tone is generated on PC0
-DDRC = 0x01;
+// Alarm tone is generated on PC0
+// Logic timing on PC4
+DDRC = (1 << PC0) | (1 << PC4) | (1 << PC5) | (1 << PC6);
 // encoder is on PE0 and PE1
+// bar graph ~OE is on PE5
 // volume is tied to OC3A on PE3
-DDRE = (1 << PE0) | (1 << PE1) | (1 << PE4);
+DDRE = (1 << PE0) | (1 << PE1) | (1 << PE4) | (1 << PE5) | (1 << PE6);
 // For debugging
 DDRG |= (1 << PG0) | (1 << PG1) | (1 << PG2);
 
 // initialize the real time clock and initial clock display
 real_clk_init();
+timer1_init();
+timer2_init();
+timer3_init();
+ADC_init();
+SPI_init();
 format_clk_array(hrs, min);
-
-//setup timer counter 1 to run in Fast PWM mode. Timer generates the alarm tone 
-TCCR1A |= (1 << WGM10) | (1 << WGM11);               //fast PWM mode, OC pin disabled 
-TCCR1B |= (1 << WGM12) | (1 << WGM13) | (0 << CS10); //use OCR1A as source for TOP, use clk/1
-TCCR1C = 0x00;          //no forced compare 
-OCR1A = 0x8000;         //clear at 0x8000. 16MHz/0x8000 = 488.28Hz = 0.002 Sec
-OCR1B = 0x4000;         //create DC of tone
-TIMSK |= (1 << OCIE1B); // enable interrupt when timer resets
-
-
-// set up timer and interrupt (16Mhz / 256 = 62,500Hz = 16uS)
-// OC2 will pulse PB7 which is what the LED board PWM pin is connected to
-TCCR2 |= (1 << WGM21) | (1 << WGM20) | (1 << COM20) \
-         | (1 << COM21) | (1 << CS21); // set timer mode (PWM, no prescalar, inverting)
-OCR2 = 0xF9;
-
-// timer 3 controls frequency of checking buttons as well as volume control
-// (16,000,000)/(16,384) = 976 cycles/sec = 1.024mS
-TCCR3A |= (1 << COM3B1) | (1 << WGM30) |  (1 << WGM31); //fast PWM mode, non-inverting
-TCCR3B |= (1 << WGM32) | (1 << WGM33) | (1 << CS30); //fast PWM and clk/1 (976Hz)  
-//TCCR3C = 0X00;         //no forced compare
-OCR3A = 0x2000;          //define TOP of counter
-OCR3B = 0x1000;          //define the volume dc in the compare register
-ETIMSK = (1 << TOIE3);   //enable interrupt on overflow and compare,
-                         //check buttons and get new duty cycle, 
-
-// set up ADC (get light level)
-DDRF  &= ~(_BV(DDF7)); //make port F bit 7 is ADC input  
-PORTF &= ~(_BV(PF7));  //port F bit 7 pullups must be off
-ADMUX = (1 << ADLAR) | (1 << REFS0) | (1 << MUX0) | (1 << MUX1) \
-        | (1 << MUX2); // set reference voltage to external 5V
-ADCSRA = (1 << ADEN) | (1 << ADIE) | (1 << ADPS0) \
-        | (1 << ADPS1) | (1 << ADPS2); // enable ADC, enable interrupts, enable ADC0
-                                       // 128 prescaler (16,000,000/128 = 125,000)
-
-// set up SPI (master mode, clk low on idle, leading edge sample)
-SPCR = (1 << SPE) | (1 << MSTR) | (0 << CPOL) | (0 << CPHA);
-SPSR = (1 << SPI2X);
-
 lcd_init();             // initialize the lcd screen
-string2lcd(alarm_msg);  // sent initial alarm msg
-send_lcd(0x00, 0x08);   // turn diplay off
+
+//string2lcd("NORMAL MODE     ");  // sent initial alarm msg
+//send_lcd(0x00, 0x08);   // turn diplay off
 
 sei();                  // enable global interrupts
 
@@ -908,8 +852,88 @@ while(1){
             format_clk_array(alarm_hrs, alarm_min);
             break;
     }//switch
+
     update_LEDs();
 }//while
 
 return 0;
 }//main
+
+
+
+/******************************************************************************
+* Function: real_clk_init
+* Parameters: none
+* Return: none
+* Description: This function initializes timer 0 to track real time. The
+*   timer uses the 32kHz external clock. There are specific procedures
+*   found in the datasheet that initializes this oscillator.
+*   External clock runs at ~32kHz.
+*   Elapsed time = 32,768Hz / (256 * 128) = 1 sec
+*******************************************************************************/
+
+void real_clk_init() {
+    
+    // Follow procedures in the datasheet to select the external clock.
+    TIMSK &= ~((1 << OCIE0) | (1 << TOIE0)); //clear interrupts
+    ASSR |= (1 << AS0);                     //enable external clock
+    TCCR0 = (0 << WGM01) | (0 << WGM00) | \
+            (1 << CS02) | (1 << CS00);      //normal mode, 128 prescale
+    while(!((ASSR & 0b0111) == 0)) {}       //spin till registers finish updating
+    TIFR |= (1 << OCF0) | (1 << TOV0);      //clear interrupt flags
+    TIMSK |= (1 << TOIE0);                  //enable overflow interrupt
+
+}//real_clk_intit
+
+
+void timer1_init() {
+	//setup timer counter 1 to run in Fast PWM mode. Timer generates the alarm tone 
+	TCCR1A |= (1 << WGM10) | (1 << WGM11);               //fast PWM mode, OC pin disabled 
+	TCCR1B |= (1 << WGM12) | (1 << WGM13) | (0 << CS10); //use OCR1A as source for TOP, use clk/1
+	TCCR1C = 0x00;          //no forced compare 
+	OCR1A = 0x8000;         //clear at 0x8000. 16MHz/0x8000 = 488.28Hz = 0.002 Sec
+	OCR1B = 0x4000;         //create DC of tone
+	TIMSK |= (1 << OCIE1B); // enable interrupt when timer resets
+}//timer1_init
+
+
+void timer2_init() {
+	// set up timer and interrupt (16Mhz /(8*256) = 7,813Hz = 128uS)
+	// OC2 will pulse PB7 which is what the LED board PWM pin is connected to
+	TCCR2 |= (1 << WGM21) | (1 << WGM20) | (1 << COM20) \
+ 	        | (1 << COM21) | (1 << CS21) | (1 << CS20); // set timer mode (PWM, no prescalar, inverting)
+	OCR2 = 0xF9;
+	TIMSK |= (1 << TOIE2);
+}//timer2_init
+
+
+void timer3_init() {
+	// timer 3 controls frequency of checking buttons as well as volume control
+	// (16,000,000)/(16,384) = 976 cycles/sec = 1.024mS
+	TCCR3A |= (1 << COM3B1) | (1 << WGM30) |  (1 << WGM31); //fast PWM mode, non-inverting
+	TCCR3B |= (1 << WGM32) | (1 << WGM33) | (1 << CS30); //fast PWM and clk/1 (976Hz)  
+	//TCCR3C = 0X00;         //no forced compare
+	OCR3A = 0x2000;          //define TOP of counter
+	OCR3B = 0x1000;          //define the volume dc in the compare register
+	//ETIMSK = (1 << TOIE3);   //enable interrupt on overflow and compare,
+                         //check buttons and get new duty cycle, 
+}//timer3_init
+
+
+void SPI_init() {
+	// set up SPI (master mode, clk low on idle, leading edge sample)
+	SPCR = (1 << SPE) | (1 << MSTR) | (0 << CPOL) | (0 << CPHA);
+	SPSR = (1 << SPI2X);
+}//SPI_init
+
+
+void ADC_init() {
+	// set up ADC (get light level)
+	DDRF  &= ~(_BV(DDF7)); //make port F bit 7 is ADC input  
+	PORTF &= ~(_BV(PF7));  //port F bit 7 pullups must be off
+	ADMUX = (1 << ADLAR) | (1 << REFS0) | (1 << MUX0) | (1 << MUX1) \
+	        | (1 << MUX2); // set reference voltage to external 5V
+	ADCSRA = (1 << ADEN) | (1 << ADIE) | (1 << ADPS0) \
+	        | (1 << ADPS1) | (1 << ADPS2); // enable ADC, enable interrupts, enable ADC0
+                                       // 128 prescaler (16,000,000/128 = 125,000)	
+}//ADC_init

@@ -64,8 +64,8 @@ void uart_puts_p(const char *str) {
 
 void uart_init(){
 //rx and tx enable, receive interrupt enabled, 8 bit characters
-//UCSR0B |= (1<<RXEN0) | (1<<TXEN0) | (1<<RXCIE0); //INTERRUPTS ENABLED
-  UCSR0B |= (1<<RXEN0) | (1<<TXEN0);               //INTERRUPS DISABLED
+  UCSR0B |= (1<<RXEN0) | (1<<TXEN0) | (1<<RXCIE0); //INTERRUPTS ENABLED
+//UCSR0B |= (1<<RXEN0) | (1<<TXEN0);               //INTERRUPS DISABLED
 
 //async operation, no parity,  one stop bit, 8-bit characters
   UCSR0C |= (1<<UCSZ01) | (1<<UCSZ00);
