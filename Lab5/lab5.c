@@ -1,3 +1,4 @@
+
 /**********************************************************************
  * Copywrite: NONE
  * Original Author(s): Jesse Ulibarri
@@ -8,7 +9,6 @@
  *  user input and change the system's state. Based on the state,
  *  users will be able to change the current time and alarm time by
  *  using the encoder board. Current system state will be displayed 
- *  on the  LED graph board.
  *********************************************************************/
 
 /**********************************************************************
@@ -31,8 +31,8 @@
 *             ***** ENCODER_BOARD *****
 *  PORTB bit 1 (SCLK) goes to SCK on encoder board
 *  PORTB bit 3 (MISO) goes to SER_OUT on encoder board
-*  PORTE bit 0 goes to SH/LD on encoder board
-*  PORTE bit 1 goes to CLK_INH on encoder board
+*  PORTE bit 2 goes to SH/LD on encoder board
+*  PORTE bit 3 goes to CLK_INH on encoder board
 * 
 *             ***** BUTTON_BOARD *****
 *  PORTB bits 4-6 go to a,b,c inputs of the 74HC138.
@@ -45,7 +45,12 @@
 #include <avr/io.h>
 #include <util/delay.h>
 #include <avr/interrupt.h>
-#include "hd44780.c"
+#include <string.h>
+#include <stdlib.h>
+#include "hd44780.h"
+#include "twi_master.h"
+#include "lm73_functions.h"
+#include "uart_functions.h"
 
 #define FALSE   0
 #define TRUE    1
@@ -116,7 +121,19 @@ uint8_t twelve_hr_format = TRUE;
 uint8_t alarm_on = FALSE;
 uint8_t alarm_going_off = FALSE;
 
-char alarm_msg[32] = {'A', 'L', 'A', 'R', 'M', ' ',  ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',\
+// TWI arrays
+extern uint8_t lm73_wr_buf[2];
+extern uint8_t lm73_rd_buf[2];
+uint16_t lm73_temp;
+char lm73_char_temp[8];
+char remote_temp;
+uint8_t remote_byte = 1;
+
+char mode_text[16] = "Normal Mode     ";
+char temp_text[16] = "In:   C Out:   C";
+//char lcd_display[32] = lcd_line1 + lcd_line2;
+char lcd_display[32];
+//= {'N', 'O', 'R', 'M', 'A', 'L',  ' ', 'M', 'O', 'D', 'E', ' ', ' ', ' ', ' ', ' ',\
             ' ', ' ', ' ', ' ', ' ', ' ',  ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '};
 
 //holds data to be sent to the segments. logic zero turns segment on
@@ -143,7 +160,7 @@ int8_t enc_lookup[16] = {0,0,0,0,0,0,0,1,0,0,0,-1,0,0,0,0};
 *   Expects active low pushbuttons on PINA port.  Debounce time is determined by 
 *   external loop delay times 12. 
 *******************************************************************************/
-    
+
 uint8_t chk_buttons(uint8_t button) {
     static uint16_t state[8] = {0};
     state[button] = (state[button] << 1) | (!bit_is_clear(PINA, button)) | 0xE000;
@@ -180,7 +197,7 @@ void format_clk_array(uint8_t hours, uint8_t minutes) {
         segment_data[0] &= ~(1 << 7);
 
     // Determine if it is AM or PM
-    else if(!AM && twelve_hr_format)
+    else if(current_mode != SET_ALARM && !AM && twelve_hr_format)
         segment_data[0] &= ~(1 << 7); //turn on last DP
 
     if(alarm_on)
@@ -212,32 +229,15 @@ void clk_boundary() {
     switch(twelve_hr_format) 
     {
         case TRUE:
-            if(sec == 60) {
-                min += 1;
-                sec = 0;
-            }
-            if(min == 60) {
-                hrs += 1;
-                min = 0;
-            }
-            if(hrs == 13) {
-                hrs = 1;
-                AM ^= TRUE; //Toggle every time hrs rap around
-            }
+            if(sec == 60) { min += 1; sec = 0; }
+            if(min == 60) { hrs += 1; min = 0; }
+            if(hrs == 13) { hrs = 1; AM ^= TRUE; }
             break;
 
         case FALSE:
-            if(sec == 60) {
-                min += 1;
-                sec = 0;
-            }
-            if(min == 60) {
-                hrs += 1;
-                min = 0;
-            }
-            if(hrs == 24) {
-                hrs = 0;
-            }
+            if(sec == 60) { min += 1; sec = 0; }
+            if(min == 60) { hrs += 1; min = 0; }
+            if(hrs == 24) { hrs = 0; }
             break;
         }//switch
 }//clk_boundary
@@ -263,9 +263,7 @@ void step_time() {
     if(alarm_on) {
 
         //toggle the clk to produce a beep
-        if(alarm_going_off) {
-            TCCR1B ^= (1 << CS10);
-        }
+        if(alarm_going_off) { TCCR1B ^= (1 << CS10); }
         else if((hrs == alarm_hrs) && (min == alarm_min) && (sec == alarm_sec) && (AM == alarm_AM))
             alarm_going_off = TRUE;
     }
@@ -282,15 +280,11 @@ void step_time() {
 *******************************************************************************/
 
 void twelve_to_twfour() {
-    if(!AM)
-        hrs += 12;
+    if(!AM) hrs += 12;
 }//twelve_to_twfour
 
 void twfour_to_twelve() {
-    if(hrs > 12) {
-        hrs -= 12;
-        AM = FALSE;
-    }
+    if(hrs > 12) { hrs -= 12; AM = FALSE; }
 }//twfour_to_twelve
 
 
@@ -334,10 +328,10 @@ uint8_t SPI_read() {
     // Here is an example of internal commenting used to describe several lines 
     // of code.
     if(1) {
-        PORTE = 0x00; //shift data from encoder into it's internal register
+        PORTE |= (1 << PE2); //shift data from encoder into it's internal register
         __asm__ __volatile__ ("nop");
         __asm__ __volatile__ ("nop");
-        PORTE = 0x01; //end shift
+        PORTE &= ~(1 << PE2); //end shift
 
         SPDR = 0x00; // send junk to initialize SPI return
         while(bit_is_clear(SPSR, SPIF)) {} // wait until data is recieved
@@ -375,8 +369,7 @@ void get_button_input() {
     {
         case NORMAL:
             for(i = 7; i > 4; i--) {
-                if(chk_buttons(i))
-                    current_mode &= ~(1 << i);
+                if(chk_buttons(i)) { current_mode &= ~(1 << i); }
             }
             
             if(alarm_going_off) {
@@ -391,7 +384,8 @@ void get_button_input() {
                     TCCR1B &= ~(1 << CS10);
                     alarm_going_off = FALSE;
                     alarm_on = FALSE;
-                    send_lcd(0x00, 0x08);
+                    alarm_sec = 0;
+                    memcpy(mode_text, "Normal Mode     ", 16);
                 }
             }//if alarm_going_off
             break;
@@ -401,8 +395,7 @@ void get_button_input() {
             switch(twelve_hr_format)
             {
                 case TRUE:
-                    if(chk_buttons(7))
-                        AM ^= TRUE;
+                    if(chk_buttons(7)){ AM ^= TRUE; }
                     break;
                 case FALSE:
                     break;
@@ -421,19 +414,19 @@ void get_button_input() {
             switch(twelve_hr_format)
             {
                 case TRUE:
-                    if(chk_buttons(7))
-                        alarm_AM ^= TRUE;
+                    if(chk_buttons(7)) { alarm_AM ^= TRUE; }
                     break;
                 case FALSE:
                     break;
             }
-            if(chk_buttons(0))
+            if(chk_buttons(0)) {
                 alarm_on ^= TRUE;
-            // exit SET_ALARM mode
-            if(chk_buttons(5)) {
-                current_mode = NORMAL;
+                    if(alarm_on) { memcpy(mode_text, "Alarm Armed     ", 16); }
+                    else { memcpy(mode_text, "Normal Mode     ", 16); }
+            
             }
-
+            // exit SET_ALARM mode
+            if(chk_buttons(5)) { current_mode = NORMAL; }
             break;
             
     }//switch
@@ -471,7 +464,7 @@ void update_LEDs() {
         PORTA = segment_data[num_digits];  // send 7 segment code to LED segments
 
         // wait a moment
-        _delay_ms(0.5);
+        _delay_ms(0.1);
     }//for
     PORTA = OFF; // turn off port to keep each segment on the same amount of time
     __asm__ __volatile__ ("nop");
@@ -506,10 +499,8 @@ void encoder1_instruction(uint8_t encoder1_val) {
             min += add; // add number to min
 
             //bound the new minute setting
-            if(min > 59)
-                min = 0;
-            if(min < 0)
-                min = 59;
+            if(min > 59) min = 0;
+            if(min < 0) min = 59;
 
             break; //SET_CLK
         case SET_ALARM:
@@ -517,10 +508,8 @@ void encoder1_instruction(uint8_t encoder1_val) {
             alarm_min += add; // add number to sum
 
             //bound the new minute setting
-            if(alarm_min > 59)
-                alarm_min = 0;
-            if(alarm_min < 0)
-                alarm_min = 59;
+            if(alarm_min > 59) alarm_min = 0;
+            if(alarm_min < 0) alarm_min = 59;
 
             break; //SET_ALARM
 
@@ -560,16 +549,12 @@ void encoder2_instruction(uint8_t encoder2_val) {
             switch(twelve_hr_format)
             {
                 case TRUE:
-                    if(hrs > 12)
-                        hrs = 1;
-                    if(hrs < 1)
-                        hrs = 12;
+                    if(hrs > 12) hrs = 1;
+                    if(hrs < 1) hrs = 12;
                     break;
                 case FALSE:
-                    if(hrs > 23)
-                        hrs = 0;
-                    if(hrs < 0)
-                        hrs = 23;
+                    if(hrs > 23) hrs = 0;
+                    if(hrs < 0) hrs = 23;
                     break;
             }//switch
             break; //SET_CLK
@@ -582,16 +567,12 @@ void encoder2_instruction(uint8_t encoder2_val) {
             switch(twelve_hr_format)
             {
                 case TRUE:
-                    if(alarm_hrs > 12)
-                        alarm_hrs = 1;
-                    if(alarm_hrs < 1)
-                        alarm_hrs = 12;
+                    if(alarm_hrs > 12) alarm_hrs = 1;
+                    if(alarm_hrs < 1) alarm_hrs = 12;
                     break;
                 case FALSE:
-                    if(alarm_hrs > 23)
-                        alarm_hrs = 0;
-                    if(alarm_hrs < 0)
-                       alarm_hrs = 23;
+                    if(alarm_hrs > 23) alarm_hrs = 0;
+                    if(alarm_hrs < 0) alarm_hrs = 23;
                     break;
             }//switch
         break; //SET_ALARM
@@ -615,13 +596,13 @@ void encoder2_instruction(uint8_t encoder2_val) {
 
 void SPI_function() {
     uint8_t data;
-    
+
     //************ Encoder Portion *******************
     PORTE &= ~(1 << PE5); // enable bar graph
-    PORTE &= ~(1 << PE0); //shift encoder data into register
+    PORTE &= ~(1 << PE2); //shift encoder data into register
     __asm__ __volatile__ ("nop");
     __asm__ __volatile__ ("nop");
-    PORTE |= (1 << PE0); //end shift
+    PORTE |= (1 << PE2); //end shift
 
     //*********** Send and Receive SPI Data **********
     SPDR = (~current_mode); // send the bar graph the current status
@@ -690,9 +671,6 @@ void mode_handler() {
 
             SPI_function();
 
-            // TODO: could put this line the "get button input" function when
-            // changing back to NORMAL mode.
-            TCCR0 |= (1 << CS02) | (1 << CS00); //turn clock back on
             break;
 
 /***************************** SET ALARM MODE *************************************
@@ -704,11 +682,6 @@ void mode_handler() {
 
             SPI_function();
 
-            //if(alarm_on)
-            //    send_lcd(0x00, 0x0C);
-            //else
-            //    send_lcd(0x00, 0x08);
-            
             break;
         default:
             break;
@@ -729,9 +702,26 @@ void mode_handler() {
 ***********************************************************************************/
 ISR(TIMER0_OVF_vect) {
 
+    static int8_t i;
     PORTC |= (1 << PC5);
-
+    
     step_time();
+
+    //format temp array
+    lm73_temp = (lm73_rd_buf[0] << 8) | (lm73_rd_buf[1]);
+    lm73_temp = lm73_temp >> 7;
+    itoa(lm73_temp, lm73_char_temp, 10);
+    for(i = 0; i < 2; i++)
+        temp_text[i+4] = lm73_char_temp[i];
+
+    //begin a new temp request
+    twi_start_rd(LM73_ADDRESS, lm73_rd_buf, 2);
+    
+    //request remote temp through uart
+    //uart_putc(0xF0);
+    while(!(UCSR0A & (1 << UDRE0)));
+    UDR0 = 0xF0;
+
 
     PORTC &= ~(1 << PC5);
 
@@ -756,7 +746,7 @@ ISR(TIMER1_COMPB_vect) {
 ***********************************************************************************/
 ISR(TIMER2_OVF_vect) {
 
-    PORTC |= (1 << PC4);
+    //PORTC |= (1 << PC4);
 
     // Start ADC conversion (get light input)
     ADCSRA |= (1 << ADSC);
@@ -773,10 +763,9 @@ ISR(TIMER2_OVF_vect) {
     PORTA = old_PORTA;
     PORTB = old_PORTB;
 
-    if(alarm_on)
-        refresh_lcd(alarm_msg);
+    refresh_lcd(lcd_display);
 
-    PORTC &= ~(1 << PC4);
+    //PORTC &= ~(1 << PC4);
 
 }//Timer2 overflow ISR
 
@@ -794,6 +783,31 @@ ISR(ADC_vect) {
 
 
 /***********************************************************************************
+* Description: Received a temp byte from the ATMega48
+***********************************************************************************/
+
+ISR(USART0_RX_vect) {
+
+    PORTC |= (1 << PC4);
+
+    remote_temp = uart_getc();
+    //first or second byte?
+    if(remote_byte == 1) {
+        temp_text[13] = remote_temp;
+        remote_byte++;
+    }
+    else {
+        temp_text[14] = remote_temp;
+        remote_byte = 1;
+    }
+
+    PORTC &= ~(1 << PC4);
+
+}//USART0 receive ISR
+
+
+
+/***********************************************************************************
 ************************************************************************************
 *                                   MAIN                                           *
 ************************************************************************************
@@ -801,7 +815,7 @@ ISR(ADC_vect) {
 
 int main()
 {
-
+uint8_t i;
 // set port bits 4-7 B as outputs
 // set port bits 0-2 B as outputs (output mode for SS, MOSI, SCLK)
 // set port bit 3 as input (MISO) with pull-ups
@@ -810,10 +824,10 @@ PINB = (1 << PB3);
 // Alarm tone is generated on PC0
 // Logic timing on PC4
 DDRC = (1 << PC0) | (1 << PC4) | (1 << PC5) | (1 << PC6);
-// encoder is on PE0 and PE1
+// encoder is on PE2 and PE3
 // bar graph ~OE is on PE5
 // volume is tied to OC3A on PE3
-DDRE = (1 << PE0) | (1 << PE1) | (1 << PE4) | (1 << PE5) | (1 << PE6);
+DDRE = (1 << PE2) | (1 << PE3) | (1 << PE4) | (1 << PE5) | (1 << PE6);
 // For debugging
 DDRG |= (1 << PG0) | (1 << PG1) | (1 << PG2);
 
@@ -826,13 +840,18 @@ ADC_init();
 SPI_init();
 format_clk_array(hrs, min);
 lcd_init();             // initialize the lcd screen
+clear_display();
+init_twi();
+uart_init();
 
-//string2lcd(alarm_msg);  // sent initial alarm msg
-//send_lcd(0x00, 0x08);   // turn diplay off
+lm73_wr_buf[0] = 0x00; //load lm72_wr_buf[0] with temp pointer address
+twi_start_wr(LM73_ADDRESS, lm73_wr_buf, 2); //start the "set-up" write
 
 sei();                  // enable global interrupts
 
 while(1){
+    
+    //format the led display
     switch(current_mode)
     {
         case NORMAL:
@@ -846,7 +865,14 @@ while(1){
             break;
     }//switch
 
+    //format what is sent to the lcd display 
+    for(i = 0; i < 16; i++) {
+        lcd_display[i] = mode_text[i];
+        lcd_display[i+16] = temp_text[i];
+    }
+
     update_LEDs();
+
 }//while
 
 return 0;
@@ -894,7 +920,7 @@ void timer2_init() {
 	// set up timer and interrupt (16Mhz /(8*256) = 7,813Hz = 128uS)
 	// OC2 will pulse PB7 which is what the LED board PWM pin is connected to
 	TCCR2 |= (1 << WGM21) | (1 << WGM20) | (1 << COM20) \
- 	        | (1 << COM21) | (1 << CS21); // set timer mode (PWM, no prescalar, inverting)
+ 	        | (1 << COM21) | (1 << CS21) | (1 << CS20); // set timer mode (PWM, no prescalar, inverting)
 	OCR2 = 0xF9;
 	TIMSK |= (1 << TOIE2);
 }//timer2_init

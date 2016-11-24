@@ -116,7 +116,7 @@ uint8_t twelve_hr_format = TRUE;
 uint8_t alarm_on = FALSE;
 uint8_t alarm_going_off = FALSE;
 
-char alarm_msg[32] = {'A', 'L', 'A', 'R', 'M', ' ',  ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',\
+char alarm_msg[32] = {'N', 'O', 'R', 'M', 'A', 'L',  ' ', 'M', 'O', 'D', 'E', ' ', ' ', ' ', ' ', ' ',\
             ' ', ' ', ' ', ' ', ' ', ' ',  ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '};
 
 //holds data to be sent to the segments. logic zero turns segment on
@@ -391,7 +391,9 @@ void get_button_input() {
                     TCCR1B &= ~(1 << CS10);
                     alarm_going_off = FALSE;
                     alarm_on = FALSE;
-                    send_lcd(0x00, 0x08);
+                    memcpy(alarm_msg, "NORMAL MODE    ", 16);
+                    //send_lcd(0x00, 0x08);
+
                 }
             }//if alarm_going_off
             break;
@@ -427,8 +429,14 @@ void get_button_input() {
                 case FALSE:
                     break;
             }
-            if(chk_buttons(0))
+            if(chk_buttons(0)) {
                 alarm_on ^= TRUE;
+                    if(alarm_on)
+                        memcpy(alarm_msg, "ALARM ARMED     ", 16);
+                    else
+                        memcpy(alarm_msg, "NORMAL MODE     ", 16);
+            
+            }
             // exit SET_ALARM mode
             if(chk_buttons(5)) {
                 current_mode = NORMAL;
@@ -615,7 +623,7 @@ void encoder2_instruction(uint8_t encoder2_val) {
 
 void SPI_function() {
     uint8_t data;
-    
+
     //************ Encoder Portion *******************
     PORTE &= ~(1 << PE5); // enable bar graph
     PORTE &= ~(1 << PE0); //shift encoder data into register
@@ -773,8 +781,7 @@ ISR(TIMER2_OVF_vect) {
     PORTA = old_PORTA;
     PORTB = old_PORTB;
 
-    if(alarm_on)
-        refresh_lcd(alarm_msg);
+    refresh_lcd(alarm_msg);
 
     PORTC &= ~(1 << PC4);
 
@@ -827,7 +834,7 @@ SPI_init();
 format_clk_array(hrs, min);
 lcd_init();             // initialize the lcd screen
 
-//string2lcd(alarm_msg);  // sent initial alarm msg
+//string2lcd("NORMAL MODE     ");  // sent initial alarm msg
 //send_lcd(0x00, 0x08);   // turn diplay off
 
 sei();                  // enable global interrupts
@@ -894,7 +901,7 @@ void timer2_init() {
 	// set up timer and interrupt (16Mhz /(8*256) = 7,813Hz = 128uS)
 	// OC2 will pulse PB7 which is what the LED board PWM pin is connected to
 	TCCR2 |= (1 << WGM21) | (1 << WGM20) | (1 << COM20) \
- 	        | (1 << COM21) | (1 << CS21); // set timer mode (PWM, no prescalar, inverting)
+ 	        | (1 << COM21) | (1 << CS21) | (1 << CS20); // set timer mode (PWM, no prescalar, inverting)
 	OCR2 = 0xF9;
 	TIMSK |= (1 << TOIE2);
 }//timer2_init
