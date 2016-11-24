@@ -1,9 +1,9 @@
 PRG             =lab5_atmega48
 
-OBJS            =lab5_atmega48.o twi_master.o mega48_uart_functions.o
+OBJS            =lab5_atmega48.o twi_master.o lm73_functions_skel.o mega48_uart_functions.o
 
 
-SRCS            =lab5_atmega48.c twi_master.c mega48_uart_functions.c
+SRCS            =lab5_atmega48.c twi_master.c lm73_functions_skel.c mega48_uart_functions.c
 
 #MCU_TARGET     = atmega128
 MCU_TARGET     = atmega48

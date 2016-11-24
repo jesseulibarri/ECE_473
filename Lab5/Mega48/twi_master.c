@@ -6,7 +6,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
-#define F_CPU 16000000UL
+//#define F_CPU 16000000UL
 #include <util/twi.h>
 #include <stdlib.h>
 #include "twi_master.h"
