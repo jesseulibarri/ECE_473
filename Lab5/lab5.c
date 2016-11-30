@@ -106,6 +106,7 @@ void ADC_init();
 
 uint8_t current_mode = NORMAL;
 
+// Clcok and alarm variables
 int8_t hrs = 12;
 int8_t min = 0;
 uint8_t sec = 0;
@@ -116,6 +117,9 @@ int8_t alarm_min = 0;
 int8_t alarm_sec = 0;
 uint8_t alarm_AM = TRUE;
 
+volatile int16_t volume = 0xA3;
+
+// General flags
 uint8_t Colon_Status = FALSE;
 uint8_t twelve_hr_format = TRUE;
 uint8_t alarm_on = FALSE;
@@ -131,10 +135,7 @@ uint8_t remote_byte = 1;
 
 char mode_text[16] = "Normal Mode     ";
 char temp_text[16] = "In:   C Out:   C";
-//char lcd_display[32] = lcd_line1 + lcd_line2;
 char lcd_display[32];
-//= {'N', 'O', 'R', 'M', 'A', 'L',  ' ', 'M', 'O', 'D', 'E', ' ', ' ', ' ', ' ', ' ',\
-            ' ', ' ', ' ', ' ', ' ', ' ',  ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '};
 
 //holds data to be sent to the segments. logic zero turns segment on
 uint8_t segment_data[5];
@@ -226,20 +227,20 @@ void format_clk_array(uint8_t hours, uint8_t minutes) {
 
 void clk_boundary() {
 
-    switch(twelve_hr_format) 
-    {
-        case TRUE:
-            if(sec == 60) { min += 1; sec = 0; }
-            if(min == 60) { hrs += 1; min = 0; }
-            if(hrs == 13) { hrs = 1; AM ^= TRUE; }
-            break;
+        switch(twelve_hr_format) 
+        {
+            case TRUE:
+                if(sec == 60) { min += 1; sec = 0; }
+                if(min == 60) { hrs += 1; min = 0; }
+                if(hrs == 13) { hrs = 1; AM ^= TRUE; }
+                break;
 
-        case FALSE:
-            if(sec == 60) { min += 1; sec = 0; }
-            if(min == 60) { hrs += 1; min = 0; }
-            if(hrs == 24) { hrs = 0; }
-            break;
-        }//switch
+            case FALSE:
+                if(sec == 60) { min += 1; sec = 0; }
+                if(min == 60) { hrs += 1; min = 0; }
+                if(hrs == 24) { hrs = 0; }
+                break;
+            }//switch
 }//clk_boundary
 
 /***********************************************************************************
@@ -391,6 +392,8 @@ void get_button_input() {
             break;
 
         case SET_CLK:
+            
+            memcpy(mode_text, "Set Clock       ", 16);
 
             switch(twelve_hr_format)
             {
@@ -404,6 +407,7 @@ void get_button_input() {
             // exit SET_CLK mode
             if(chk_buttons(6)) {
                 current_mode = NORMAL;
+                memcpy(mode_text, "Normal Mode     ", 16);
                 TCCR0 |= (1 << CS02) | (1 << CS00); //turn clock back on
             }
 
@@ -411,6 +415,8 @@ void get_button_input() {
 
         case SET_ALARM:
             
+            memcpy(mode_text, "Set Alarm       ", 16);
+
             switch(twelve_hr_format)
             {
                 case TRUE:
@@ -421,19 +427,23 @@ void get_button_input() {
             }
             if(chk_buttons(0)) {
                 alarm_on ^= TRUE;
-                    if(alarm_on) { memcpy(mode_text, "Alarm Armed     ", 16); }
-                    else { memcpy(mode_text, "Normal Mode     ", 16); }
+                    if(alarm_on) { memcpy(mode_text, "Set Clock/AArmed", 16); }
+                    else { memcpy(mode_text, "Set Alarm       ", 16); }
             
             }
             // exit SET_ALARM mode
-            if(chk_buttons(5)) { current_mode = NORMAL; }
+            if(chk_buttons(5)) { 
+                current_mode = NORMAL;
+                if(alarm_on) { memcpy(mode_text, "Normal - A Armed", 16); }
+                else { memcpy(mode_text, "Normal Mode     ", 16); }
+            }
             break;
             
     }//switch
 
     // disable the tristate buffer
     PORTB = DISABLE_TRISTATE;
-//    DDRA = 0xFF; //set PORTA back to output
+    DDRA = 0xFF; //set PORTA back to output
 
 }//get_button_input
 
@@ -464,7 +474,7 @@ void update_LEDs() {
         PORTA = segment_data[num_digits];  // send 7 segment code to LED segments
 
         // wait a moment
-        _delay_ms(0.1);
+       _delay_us(500);
     }//for
     PORTA = OFF; // turn off port to keep each segment on the same amount of time
     __asm__ __volatile__ ("nop");
@@ -489,13 +499,20 @@ void encoder1_instruction(uint8_t encoder1_val) {
 
     encoder1_hist = encoder1_hist << 2; // shift the encoder history two places
     encoder1_hist = encoder1_hist | (encoder1_val & 0b0011); // or the history with new value
+    add = enc_lookup[encoder1_hist & 0b1111]; //add one
     switch(current_mode) 
     {
         case NORMAL:
+            //change volume when in normal mode
+            if(add != 0) {
+                volume = volume + (0xA3 * add);
+                if(volume > 0x2000) { volume = 0x2000; }
+                if(volume < 0) { volume = 0; }
+                OCR3B = volume;
+            }
             //do not do anything - shouldn't ever get here
             break;
         case SET_CLK:
-            add = enc_lookup[encoder1_hist & 0b1111]; //add one
             min += add; // add number to min
 
             //bound the new minute setting
@@ -504,7 +521,6 @@ void encoder1_instruction(uint8_t encoder1_val) {
 
             break; //SET_CLK
         case SET_ALARM:
-            add = enc_lookup[encoder1_hist & 0b1111]; //add four
             alarm_min += add; // add number to sum
 
             //bound the new minute setting
@@ -536,13 +552,13 @@ void encoder2_instruction(uint8_t encoder2_val) {
 
     encoder2_hist = encoder2_hist << 2; // shift the encoder history two places
     encoder2_hist = encoder2_hist | (encoder2_val & 0b0011); // or the history with new value
+    add = enc_lookup[encoder2_hist & 0b1111]; //add one
     switch(current_mode) 
     {
         case NORMAL:
             //do not do anything - shouldn't ever get here
             break;
         case SET_CLK:
-            add = enc_lookup[encoder2_hist & 0b1111]; //add one
             hrs += add; // add number to hrs
 
             //bound the new hours setting
@@ -560,7 +576,6 @@ void encoder2_instruction(uint8_t encoder2_val) {
             break; //SET_CLK
 
         case SET_ALARM:
-            add = enc_lookup[encoder2_hist & 0b1111];
             alarm_hrs += add;
 
             //bound the new hours setting
@@ -638,6 +653,9 @@ void mode_handler() {
 /********************************* NORMAL MODE **************************************
 ************************************************************************************/
         case NORMAL:
+
+            SPI_function();
+
             //Do not do anything
             break;
 
@@ -722,7 +740,6 @@ ISR(TIMER0_OVF_vect) {
     while(!(UCSR0A & (1 << UDRE0)));
     UDR0 = 0xF0;
 
-
     PORTC &= ~(1 << PC5);
 
 }//Timer0 overflow ISR
@@ -741,12 +758,11 @@ ISR(TIMER1_COMPB_vect) {
 
 
 /***********************************************************************************
-* Description: Interrupt drives the alarm tone.
-*  PWM into input of OPAMP.
+* Description: 
 ***********************************************************************************/
 ISR(TIMER2_OVF_vect) {
 
-    //PORTC |= (1 << PC4);
+    PORTC |= (1 << PC3);
 
     // Start ADC conversion (get light input)
     ADCSRA |= (1 << ADSC);
@@ -759,13 +775,13 @@ ISR(TIMER2_OVF_vect) {
     mode_handler();             //call correct functions depending on mode
     SPI_send(~current_mode);    //send mode to the bar graph
 
+    refresh_lcd(lcd_display);
+
     DDRA = old_DDRA;
     PORTA = old_PORTA;
     PORTB = old_PORTB;
 
-    refresh_lcd(lcd_display);
-
-    //PORTC &= ~(1 << PC4);
+    PORTC &= ~(1 << PC3);
 
 }//Timer2 overflow ISR
 
@@ -823,7 +839,7 @@ DDRB = 0xF7;
 PINB = (1 << PB3);
 // Alarm tone is generated on PC0
 // Logic timing on PC4
-DDRC = (1 << PC0) | (1 << PC4) | (1 << PC5) | (1 << PC6);
+DDRC = (1 << PC0) | (1 << PC3) | (1 << PC4) | (1 << PC5) | (1 << PC6);
 // encoder is on PE2 and PE3
 // bar graph ~OE is on PE5
 // volume is tied to OC3A on PE3
@@ -850,7 +866,6 @@ twi_start_wr(LM73_ADDRESS, lm73_wr_buf, 2); //start the "set-up" write
 sei();                  // enable global interrupts
 
 while(1){
-    
     //format the led display
     switch(current_mode)
     {
@@ -920,7 +935,7 @@ void timer2_init() {
 	// set up timer and interrupt (16Mhz /(8*256) = 7,813Hz = 128uS)
 	// OC2 will pulse PB7 which is what the LED board PWM pin is connected to
 	TCCR2 |= (1 << WGM21) | (1 << WGM20) | (1 << COM20) \
- 	        | (1 << COM21) | (1 << CS21) | (1 << CS20); // set timer mode (PWM, no prescalar, inverting)
+ 	        | (1 << COM21) | (1 << CS21) | (0 << CS20); // set timer mode (PWM, 8 prescalar, inverting)
 	OCR2 = 0xF9;
 	TIMSK |= (1 << TOIE2);
 }//timer2_init
@@ -933,7 +948,7 @@ void timer3_init() {
 	TCCR3B |= (1 << WGM32) | (1 << WGM33) | (1 << CS30); //fast PWM and clk/1 (976Hz)  
 	//TCCR3C = 0X00;         //no forced compare
 	OCR3A = 0x2000;          //define TOP of counter
-	OCR3B = 0x1000;          //define the volume dc in the compare register
+	OCR3B = volume;          //define the volume dc in the compare register
 	//ETIMSK = (1 << TOIE3);   //enable interrupt on overflow and compare,
                          //check buttons and get new duty cycle, 
 }//timer3_init
