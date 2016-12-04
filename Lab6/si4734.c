@@ -13,9 +13,9 @@
 #include <util/twi.h>
 #include <avr/eeprom.h>
 #include <util/delay.h>
-#include "../uart_functions.h"
+#include "uart_functions.h"
 
-#include "../twi_master/twi_master.h" //my defines for TWCR_START, STOP, RACK, RNACK, SEND
+#include "twi_master.h" //my defines for TWCR_START, STOP, RACK, RNACK, SEND
 #include "si4734.h"
 
 uint8_t si4734_wr_buf[9];          //buffer for holding data to send to the si4734 
@@ -24,23 +24,10 @@ uint8_t si4734_tune_status_buf[8]; //buffer for holding tune_status data
 uint8_t si4734_revision_buf[16];   //buffer for holding revision  data  
 
 enum radio_band{FM, AM, SW};
-extern volatile enum radio_band current_radio_band;
 
 volatile uint8_t STC_interrupt;  //flag bit to indicate tune or seek is done
 
-extern uint16_t eeprom_fm_freq;
-extern uint16_t eeprom_am_freq;
-extern uint16_t eeprom_sw_freq;
-extern uint8_t  eeprom_volume;
 
-extern uint16_t current_fm_freq;
-extern uint16_t current_am_freq;
-extern uint16_t current_sw_freq;
-extern uint8_t  current_volume;
-
-//Used in debug mode for UART1
-extern char uart1_tx_buf[40];      //holds string to send to crt
-extern char uart1_rx_buf[40];      //holds string that recieves data from uart
 //******************************************************************
 
 
@@ -78,7 +65,7 @@ void fm_tune_freq(){
   //send fm tune command
   STC_interrupt = FALSE;
   twi_start_wr(SI4734_ADDRESS, si4734_wr_buf, 5);
-  while( ! STC_interrupt ){}; //spin until the tune command finishes 
+ //while( ! STC_interrupt ){}; //spin until the tune command finishes 
 }
 //********************************************************************************
 

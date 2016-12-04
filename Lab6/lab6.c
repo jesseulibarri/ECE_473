@@ -2,8 +2,8 @@
 /**********************************************************************
  * Copywrite: NONE
  * Original Author(s): Jesse Ulibarri
- * Original Date: 10/17/16
- * Version: Lab5.1
+ * Original Date: 12/3/16
+ * Version: Lab6.1
  * Description: ATMega128 will track real time to be displayed on the
  *  seven-segment, five-digit board. Eight-button board will receive
  *  user input and change the system's state. Based on the state,
@@ -13,7 +13,7 @@
 
 /**********************************************************************
 * Class: ECE 473
-* Assignment: Lab5
+* Assignment: Lab6
 *
 *  HARDWARE SETUP:
 *  PORTA is connected to the segments of the LED display. and to the pushbuttons.
@@ -39,7 +39,7 @@
 *  PORTB bit 7 goes to the PWM transistor base.
 *********************************************************************/
 
-#define F_CPU 16000000 // cpu speed in hertz 
+//#define F_CPU 16000000 // cpu speed in hertz 
 #define TRUE 1
 #define FALSE 0
 #include <avr/io.h>
@@ -51,9 +51,10 @@
 #include "twi_master.h"
 #include "lm73_functions.h"
 #include "uart_functions.h"
+#include "si4734.h"
 
-#define FALSE   0
-#define TRUE    1
+//#define FALSE   0
+//#define TRUE    1
 
 #define OFF     0xFF
 #define ZERO    0xC0
@@ -103,6 +104,8 @@ void timer2_init();
 void timer3_init();
 void SPI_init();
 void ADC_init();
+void Radio_init_reset();
+void external7_interrupt_init();
 
 uint8_t current_mode = NORMAL;
 
@@ -110,7 +113,7 @@ uint8_t current_mode = NORMAL;
 int8_t hrs = 12;
 int8_t min = 0;
 uint8_t sec = 0;
-uint8_t AM = TRUE;
+uint8_t AM_time = TRUE;
 
 int8_t alarm_hrs = 12;
 int8_t alarm_min = 0;
@@ -133,6 +136,22 @@ char lm73_char_temp[8];
 char remote_temp;
 uint8_t remote_byte = 1;
 
+// Radio Variables
+enum radio_band{FM, AM, SW};
+volatile enum radio_band current_radio_band;
+
+uint16_t eeprom_fm_freq;
+uint16_t eeprom_am_freq;
+uint16_t eeprom_sw_freq;
+uint8_t eeprom_volume;
+
+uint16_t current_fm_freq;
+uint16_t current_am_freq;
+uint16_t current_sw_freq;
+uint8_t current_volume;
+extern uint8_t STC_interrupt;
+
+// LCD arrays
 char mode_text[16] = "Normal Mode     ";
 char temp_text[16] = "In:   C Out:   C";
 char lcd_display[32];
@@ -198,7 +217,7 @@ void format_clk_array(uint8_t hours, uint8_t minutes) {
         segment_data[0] &= ~(1 << 7);
 
     // Determine if it is AM or PM
-    else if(current_mode != SET_ALARM && !AM && twelve_hr_format)
+    else if(current_mode != SET_ALARM && !AM_time && twelve_hr_format)
         segment_data[0] &= ~(1 << 7); //turn on last DP
 
     if(alarm_on)
@@ -232,7 +251,7 @@ void clk_boundary() {
             case TRUE:
                 if(sec == 60) { min += 1; sec = 0; }
                 if(min == 60) { hrs += 1; min = 0; }
-                if(hrs == 13) { hrs = 1; AM ^= TRUE; }
+                if(hrs == 13) { hrs = 1; AM_time ^= TRUE; }
                 break;
 
             case FALSE:
@@ -265,7 +284,7 @@ void step_time() {
 
         //toggle the clk to produce a beep
         if(alarm_going_off) { TCCR1B ^= (1 << CS10); }
-        else if((hrs == alarm_hrs) && (min == alarm_min) && (sec == alarm_sec) && (AM == alarm_AM))
+        else if((hrs == alarm_hrs) && (min == alarm_min) && (sec == alarm_sec) && (AM_time == alarm_AM))
             alarm_going_off = TRUE;
     }
 
@@ -281,11 +300,11 @@ void step_time() {
 *******************************************************************************/
 
 void twelve_to_twfour() {
-    if(!AM) hrs += 12;
+    if(!AM_time) hrs += 12;
 }//twelve_to_twfour
 
 void twfour_to_twelve() {
-    if(hrs > 12) { hrs -= 12; AM = FALSE; }
+    if(hrs > 12) { hrs -= 12; AM_time = FALSE; }
 }//twfour_to_twelve
 
 
@@ -329,10 +348,10 @@ uint8_t SPI_read() {
     // Here is an example of internal commenting used to describe several lines 
     // of code.
     if(1) {
-        PORTE |= (1 << PE2); //shift data from encoder into it's internal register
+        PORTD |= (1 << PD4); //shift data from encoder into it's internal register
         __asm__ __volatile__ ("nop");
         __asm__ __volatile__ ("nop");
-        PORTE &= ~(1 << PE2); //end shift
+        PORTD &= ~(1 << PD4); //end shift
 
         SPDR = 0x00; // send junk to initialize SPI return
         while(bit_is_clear(SPSR, SPIF)) {} // wait until data is recieved
@@ -398,7 +417,7 @@ void get_button_input() {
             switch(twelve_hr_format)
             {
                 case TRUE:
-                    if(chk_buttons(7)){ AM ^= TRUE; }
+                    if(chk_buttons(7)){ AM_time ^= TRUE; }
                     break;
                 case FALSE:
                     break;
@@ -511,7 +530,6 @@ void encoder1_instruction(uint8_t encoder1_val) {
                 if(volume < 0) { volume = 0; }
                 OCR3B = volume;
             }
-            //do not do anything - shouldn't ever get here
             break;
         case SET_CLK:
             min += add; // add number to min
@@ -557,7 +575,13 @@ void encoder2_instruction(uint8_t encoder2_val) {
     switch(current_mode) 
     {
         case NORMAL:
-            //do not do anything - shouldn't ever get here
+            //change radio station
+            if(add != 0) {
+                current_fm_freq = current_fm_freq + add * 20;
+                if(current_fm_freq < 8880) { current_fm_freq = 8880; }
+                if(current_fm_freq > 10970) { current_fm_freq = 10970; }
+                fm_tune_freq();
+            }
             break;
         case SET_CLK:
             hrs += add; // add number to hrs
@@ -615,10 +639,10 @@ void SPI_function() {
 
     //************ Encoder Portion *******************
     PORTE &= ~(1 << PE5); // enable bar graph
-    PORTE &= ~(1 << PE2); //shift encoder data into register
+    PORTD &= ~(1 << PD4); //shift encoder data into register
     __asm__ __volatile__ ("nop");
     __asm__ __volatile__ ("nop");
-    PORTE |= (1 << PE2); //end shift
+    PORTD |= (1 << PD4); //end shift
 
     //*********** Send and Receive SPI Data **********
     SPDR = (~current_mode); // send the bar graph the current status
@@ -805,7 +829,7 @@ ISR(ADC_vect) {
 
 ISR(USART0_RX_vect) {
 
-    PORTC |= (1 << PC4);
+    //PORTC |= (1 << PC4);
 
     remote_temp = uart_getc();
     //first or second byte?
@@ -818,9 +842,12 @@ ISR(USART0_RX_vect) {
         remote_byte = 1;
     }
 
-    PORTC &= ~(1 << PC4);
+    //PORTC &= ~(1 << PC4);
 
 }//USART0 receive ISR
+
+// Interrupt for the radio
+ISR(INT7_vect) { STC_interrupt = TRUE; }
 
 
 
@@ -841,10 +868,12 @@ PINB = (1 << PB3);
 // Alarm tone is generated on PC0
 // Logic timing on PC4
 DDRC = (1 << PC0) | (1 << PC3) | (1 << PC4) | (1 << PC5) | (1 << PC6);
-// encoder is on PE2 and PE3
+// encoder is on PD4 and PD5
+DDRD |= (1 << PD4) | (1 << PD5);
 // bar graph ~OE is on PE5
 // volume is tied to OC3A on PE3
-DDRE = (1 << PE2) | (1 << PE3) | (1 << PE4) | (1 << PE5) | (1 << PE6);
+//DDRE = (1 << PE2) | (1 << PE3) | 
+DDRE = (1 << PE4) | (1 << PE5) | (1 << PE6);
 // For debugging
 DDRG |= (1 << PG0) | (1 << PG1) | (1 << PG2);
 
@@ -860,11 +889,19 @@ lcd_init();             // initialize the lcd screen
 clear_display();
 init_twi();
 uart_init();
+external7_interrupt_init();
+Radio_init_reset();
+
+sei();                  // enable global interrupts
+
+fm_pwr_up();            // powerup the radio as appropriate
+current_fm_freq = 10790;
+
+fm_tune_freq();
 
 lm73_wr_buf[0] = 0x00; //load lm72_wr_buf[0] with temp pointer address
 twi_start_wr(LM73_ADDRESS, lm73_wr_buf, 2); //start the "set-up" write
 
-sei();                  // enable global interrupts
 
 while(1){
     //format the led display
@@ -888,6 +925,7 @@ while(1){
     }
 
     update_LEDs();
+    //fm_tune_freq();
 
 }//while
 
@@ -972,3 +1010,30 @@ void ADC_init() {
 	        | (1 << ADPS1) | (1 << ADPS2); // enable ADC, enable interrupts, enable ADC0
                                        // 128 prescaler (16,000,000/128 = 125,000)	
 }//ADC_init
+
+
+void Radio_init_reset() {
+
+    DDRE |= 0x04;   //Port E bit 2 is active high reset for radio
+    PORTE |= 0x04;  //radio reset is on at powerup (active high)
+
+    //hardware reset of si4734
+    PORTE &= ~(1 << PE7);   //int2 initially low to sense TWI mode
+    DDRE |= 0x80;           //turn on Port E bit 7 to drive it low
+    PORTE |= (1 << PE2);    //hardware reset si4734
+    _delay_us(200);         //hold for 200us, 100us by spec
+    PORTE &= ~(1 << PE2);   //release reset
+    _delay_us(30);          //5us required because of my slow I2C
+                              //translators I suspect. Si code in
+                              //"low" has 30us delay...no explanation
+    DDRE &= ~(0x80);        //now Port E bit 7 becomes input from the 
+                              //radio interrupt
+
+}//Radio_init_reset
+
+
+void external7_interrupt_init() {
+    EIMSK |= 0x80;
+    EICRB |= (1 << ISC71) | (1 << ISC70);
+}
+

@@ -32,8 +32,24 @@
 #define AM_RSQ_STATUS_IN_INTACK 0x01
 #define GET_REV         0x10 
 
-#define FALSE           0x00
-#define TRUE            0x01
+#define FALSE 0          //0x00
+#define TRUE  1          //0x01
+
+extern volatile enum radio_band current_radio_band;
+
+extern uint16_t eeprom_fm_freq;
+extern uint16_t eeprom_am_freq;
+extern uint16_t eeprom_sw_freq;
+extern uint8_t  eeprom_volume;
+
+extern uint16_t current_fm_freq;
+extern uint16_t current_am_freq;
+extern uint16_t current_sw_freq;
+extern uint8_t  current_volume;
+
+//Used in debug mode for UART1
+extern char uart1_tx_buf[40];      //holds string to send to crt
+extern char uart1_rx_buf[40];      //holds string that recieves data from uart
 
 //si4734.c function prototypes
 uint8_t get_int_status();

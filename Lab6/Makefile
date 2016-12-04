@@ -1,10 +1,10 @@
-PRG             =lab5
+PRG             =lab6
 #PRG				=uart_test
 
-OBJS            =lab5.o hd44780.o lm73_functions_skel.o twi_master.o uart_functions.o
+OBJS            =lab6.o hd44780.o lm73_functions_skel.o twi_master.o uart_functions.o si4734.o
 
 
-SRCS            =lab5.c hd44780.c lm73_functions_skel.c twi_master.c uart_functions.c
+SRCS            =lab6.c hd44780.c lm73_functions_skel.c twi_master.c uart_functions.c si4734.c
 
 MCU_TARGET     = atmega128
 #MCU_TARGET     = atmega48
@@ -45,6 +45,7 @@ clean:
 	-rm -rf $(PRG).lst $(PRG).map 
 	-rm -rf $(PRG).srec $(PRG)*.bin $(PRG).hex 
 	-rm -rf $(PRG)_eeprom.srec $(PRG)_eeprom*.bin $(PRG)_eeprom.hex 
+	-rm -rf *.o* *.d*
 
 all_clean:
 	rm -rf *.o *.elf *.lst *.map *.srec *.bin *.hex
