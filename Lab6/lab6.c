@@ -579,7 +579,7 @@ void encoder2_instruction(uint8_t encoder2_val) {
             if(add != 0) {
                 current_fm_freq = current_fm_freq + add * 20;
                 if(current_fm_freq < 8880) { current_fm_freq = 8880; }
-                if(current_fm_freq > 10970) { current_fm_freq = 10970; }
+                if(current_fm_freq > 10790) { current_fm_freq = 10790; }
                 fm_tune_freq();
             }
             break;
