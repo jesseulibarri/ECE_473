@@ -139,6 +139,8 @@ uint8_t remote_byte = 1;
 // Radio Variables
 enum radio_band{FM, AM, SW};
 volatile enum radio_band current_radio_band;
+uint8_t freq_disp_flag = FALSE;
+uint8_t freq_disp_counter = 0;
 
 uint16_t eeprom_fm_freq;
 uint16_t eeprom_am_freq;
@@ -150,6 +152,7 @@ uint16_t current_am_freq;
 uint16_t current_sw_freq;
 uint8_t current_volume;
 extern uint8_t STC_interrupt;
+
 
 // LCD arrays
 char mode_text[16] = "Normal Mode     ";
@@ -201,38 +204,47 @@ uint8_t chk_buttons(uint8_t button) {
 
 void format_clk_array(uint8_t hours, uint8_t minutes) {
 
+    if(freq_disp_flag) {
+        uint16_t disp_freq = current_fm_freq / 10;
+        segment_data[0] = dec_to_7seg[disp_freq % 10];
+        segment_data[1] = dec_to_7seg[(disp_freq / 10) % 10];
+        segment_data[1] &= ~(1 << 7); //turn on decimal point
+        segment_data[2] = COLON_OFF;
+        segment_data[3] = dec_to_7seg[(disp_freq / 100) % 10];
+        segment_data[4] = dec_to_7seg[(disp_freq / 1000) % 10];
+    }
+    else { 
+        //break up decimal sum into 4 digit-segments
+        segment_data[0] = dec_to_7seg[minutes % 10]; // This holds the ones
+        segment_data[1] = dec_to_7seg[(minutes / 10) % 10]; // This holds the tens
+        // there is no segment_data[2] because that holds the colon
+        segment_data[3] = dec_to_7seg[hours % 10]; // This holds the hundreds
+        segment_data[4] = dec_to_7seg[(hours / 10) % 10]; // This holds the thousands
 
-  //break up decimal sum into 4 digit-segments
-    segment_data[0] = dec_to_7seg[minutes % 10]; // This holds the ones
-    segment_data[1] = dec_to_7seg[(minutes / 10) % 10]; // This holds the tens
-    // there is no segment_data[2] because that holds the colon
-    segment_data[3] = dec_to_7seg[hours % 10]; // This holds the hundreds
-    segment_data[4] = dec_to_7seg[(hours / 10) % 10]; // This holds the thousands
+        // Determine if the colon needs to be on
+        if(TCNT0 == 128) 
+            Colon_Status = TRUE;
 
-    // Determine if the colon needs to be on
-    if(TCNT0 == 128) 
-        Colon_Status = TRUE;
+        if(current_mode == SET_ALARM && !alarm_AM && twelve_hr_format)
+            segment_data[0] &= ~(1 << 7);
 
-    if(current_mode == SET_ALARM && !alarm_AM && twelve_hr_format)
-        segment_data[0] &= ~(1 << 7);
+        // Determine if it is AM or PM
+        else if(current_mode != SET_ALARM && !AM_time && twelve_hr_format)
+            segment_data[0] &= ~(1 << 7); //turn on last DP
 
-    // Determine if it is AM or PM
-    else if(current_mode != SET_ALARM && !AM_time && twelve_hr_format)
-        segment_data[0] &= ~(1 << 7); //turn on last DP
+        if(alarm_on)
+            segment_data[4] &= ~(1 << 7);
 
-    if(alarm_on)
-        segment_data[4] &= ~(1 << 7);
-
-
-    switch(Colon_Status)
-    {
-        case TRUE:
-            segment_data[2] = COLON_ON;
-            break;
-        case FALSE:
-            segment_data[2] = COLON_OFF;
-            break;
-    }//switch
+        switch(Colon_Status)
+        {
+            case TRUE:
+                segment_data[2] = COLON_ON;
+                break;
+            case FALSE:
+                segment_data[2] = COLON_OFF;
+                break;
+        }//switch
+    }//else
 }//segment_sum
 
 /******************************************************************************
@@ -284,8 +296,11 @@ void step_time() {
 
         //toggle the clk to produce a beep
         if(alarm_going_off) { TCCR1B ^= (1 << CS10); }
-        else if((hrs == alarm_hrs) && (min == alarm_min) && (sec == alarm_sec) && (AM_time == alarm_AM))
+        if((hrs == alarm_hrs) && (min == alarm_min) && (sec == alarm_sec) && (AM_time == alarm_AM)) {
             alarm_going_off = TRUE;
+            //turn radio off if alarm goes off
+            set_property(0x4001, 0x0003);
+        }
     }
 
 }//step_time
@@ -391,6 +406,10 @@ void get_button_input() {
             for(i = 7; i > 4; i--) {
                 if(chk_buttons(i)) { current_mode &= ~(1 << i); }
             }
+
+            //turn radio off or on by muting (0x0003) or unmuting
+            if(chk_buttons(0)) { set_property(0x4001, 0x0000); }
+            if(chk_buttons(1)) { set_property(0x4001, 0x0003); }
             
             if(alarm_going_off) {
                 //snooze function
@@ -577,8 +596,10 @@ void encoder2_instruction(uint8_t encoder2_val) {
         case NORMAL:
             //change radio station
             if(add != 0) {
+                freq_disp_flag = TRUE;
+                freq_disp_counter = 0;
                 current_fm_freq = current_fm_freq + add * 20;
-                if(current_fm_freq < 8880) { current_fm_freq = 8880; }
+                if(current_fm_freq < 8890) { current_fm_freq = 8890; }
                 if(current_fm_freq > 10790) { current_fm_freq = 10790; }
                 fm_tune_freq();
             }
@@ -681,6 +702,7 @@ void mode_handler() {
 
             SPI_function();
 
+
             //Do not do anything
             break;
 
@@ -765,6 +787,12 @@ ISR(TIMER0_OVF_vect) {
     while(!(UCSR0A & (1 << UDRE0)));
     UDR0 = 0xF0;
 
+    //track how long the radio frequency displays
+    if(freq_disp_flag) {
+        freq_disp_counter++;
+        if(freq_disp_counter >= 3) { freq_disp_flag = FALSE; }
+    }
+
     PORTC &= ~(1 << PC5);
 
 }//Timer0 overflow ISR
@@ -780,7 +808,6 @@ ISR(TIMER1_COMPB_vect) {
     PORTC ^= (1 << 0);
 
 }//Timer1 compare B ISR
-
 
 /***********************************************************************************
 * Description: 
@@ -896,12 +923,12 @@ sei();                  // enable global interrupts
 
 fm_pwr_up();            // powerup the radio as appropriate
 current_fm_freq = 10790;
+set_property(0x4001, 0x0003);
 
 fm_tune_freq();
 
 lm73_wr_buf[0] = 0x00; //load lm72_wr_buf[0] with temp pointer address
 twi_start_wr(LM73_ADDRESS, lm73_wr_buf, 2); //start the "set-up" write
-
 
 while(1){
     //format the led display

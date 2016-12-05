@@ -112,15 +112,15 @@ void sw_tune_freq(){
 //
 void fm_pwr_up(){
 //restore the previous fm frequency  
- current_fm_freq = eeprom_read_word(&eeprom_fm_freq); //TODO: only this one does not work 
- current_volume  = eeprom_read_byte(&eeprom_volume); //TODO: only this one does not work 
+ //current_fm_freq = eeprom_read_word(&eeprom_fm_freq); //TODO: only this one does not work 
+ //current_volume  = eeprom_read_byte(&eeprom_volume); //TODO: only this one does not work 
 
 //send fm power up command
   si4734_wr_buf[0] = FM_PWR_UP; //powerup command byte
   si4734_wr_buf[1] = 0x50;      //GPO2O enabled, STCINT enabled, use ext. 32khz osc.
   si4734_wr_buf[2] = 0x05;      //OPMODE = 0x05; analog audio output
   twi_start_wr(SI4734_ADDRESS, si4734_wr_buf, 3);
-  _delay_ms(120);               //startup delay as specified 
+  _delay_ms(170);               //startup delay as specified 
   //The seek/tune interrupt is enabled here. If the STCINT bit is set, a 1.5us
   //low pulse will be output from GPIO2/INT when tune or seek is completed.
   set_property(GPO_IEN, GPO_IEN_STCIEN); //seek_tune complete interrupt
@@ -175,6 +175,7 @@ void sw_pwr_up(){
 
 void radio_pwr_dwn(){
 
+/*
 //save current frequency to EEPROM
 switch(current_radio_band){
   case(FM) : eeprom_write_word(&eeprom_fm_freq, current_fm_freq); break;
@@ -184,6 +185,7 @@ switch(current_radio_band){
 }//switch      
 
   eeprom_write_byte(&eeprom_volume, current_volume); //save current volume level
+*/
 
 //send fm power down command
     si4734_wr_buf[0] = 0x11;
