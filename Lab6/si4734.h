@@ -13,6 +13,7 @@
 #define AM_CHFILT_3KHZ                0x0002
 #define AM_CHFILT_2KHZ                0x0003
 #define AM_CHFILT_1KHZ                0x0004
+#define RX_HARD_MUTE                  0x4001
 
 //command definitions
 #define FM_TUNE_FREQ    0x20

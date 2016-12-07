@@ -109,7 +109,7 @@ void external7_interrupt_init();
 
 uint8_t current_mode = NORMAL;
 
-// Clcok and alarm variables
+// Clock and alarm variables
 int8_t hrs = 12;
 int8_t min = 0;
 uint8_t sec = 0;
@@ -120,7 +120,7 @@ int8_t alarm_min = 0;
 int8_t alarm_sec = 0;
 uint8_t alarm_AM = TRUE;
 
-volatile int16_t volume = 0xA3;
+volatile int16_t volume = 0x0FA3;
 
 // General flags
 uint8_t Colon_Status = FALSE;
@@ -158,6 +158,8 @@ extern uint8_t STC_interrupt;
 char mode_text[16] = "Normal Mode     ";
 char temp_text[16] = "In:   C Out:   C";
 char lcd_display[32];
+
+uint8_t single_shot = FALSE;
 
 //holds data to be sent to the segments. logic zero turns segment on
 uint8_t segment_data[5];
@@ -298,8 +300,7 @@ void step_time() {
         if(alarm_going_off) { TCCR1B ^= (1 << CS10); }
         if((hrs == alarm_hrs) && (min == alarm_min) && (sec == alarm_sec) && (AM_time == alarm_AM)) {
             alarm_going_off = TRUE;
-            //turn radio off if alarm goes off
-            set_property(0x4001, 0x0003);
+            single_shot = TRUE;
         }
     }
 
@@ -406,7 +407,6 @@ void get_button_input() {
             for(i = 7; i > 4; i--) {
                 if(chk_buttons(i)) { current_mode &= ~(1 << i); }
             }
-
             //turn radio off or on by muting (0x0003) or unmuting
             if(chk_buttons(0)) { set_property(0x4001, 0x0000); }
             if(chk_buttons(1)) { set_property(0x4001, 0x0003); }
@@ -783,7 +783,6 @@ ISR(TIMER0_OVF_vect) {
     twi_start_rd(LM73_ADDRESS, lm73_rd_buf, 2);
     
     //request remote temp through uart
-    //uart_putc(0xF0);
     while(!(UCSR0A & (1 << UDRE0)));
     UDR0 = 0xF0;
 
@@ -922,7 +921,7 @@ Radio_init_reset();
 sei();                  // enable global interrupts
 
 fm_pwr_up();            // powerup the radio as appropriate
-current_fm_freq = 10790;
+current_fm_freq = 10630;
 set_property(0x4001, 0x0003);
 
 fm_tune_freq();
@@ -952,8 +951,10 @@ while(1){
     }
 
     update_LEDs();
-    //fm_tune_freq();
-
+    if(alarm_going_off && single_shot) {
+        single_shot = FALSE;
+        set_property(RX_HARD_MUTE, 0x0003);
+    }
 }//while
 
 return 0;
