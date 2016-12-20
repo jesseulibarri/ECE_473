@@ -479,7 +479,9 @@ void update_LEDs() {
         PORTA = segment_data[num_digits];  // send 7 segment code to LED segments
 
         // wait a moment
-        _delay_ms(0.5);
+        PORTC |= (1 << PC5);
+        _delay_ms(1);
+        PORTC &= ~(1 << PC5);
     }//for
     PORTA = OFF; // turn off port to keep each segment on the same amount of time
     __asm__ __volatile__ ("nop");
@@ -737,11 +739,11 @@ void mode_handler() {
 ***********************************************************************************/
 ISR(TIMER0_OVF_vect) {
 
-    PORTC |= (1 << PC5);
+    //PORTC |= (1 << PC5);
 
     step_time();
 
-    PORTC &= ~(1 << PC5);
+    //PORTC &= ~(1 << PC5);
 
 }//Timer0 overflow ISR
 

@@ -1,4 +1,4 @@
-// lab2_skel.c 
+/ lab2_skel.c 
 // R. Traylor
 // 9.12.08
 
